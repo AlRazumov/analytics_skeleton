@@ -8,7 +8,7 @@
 
 | # | Этап | Файл | Статус | Зависит от |
 |---|------|------|--------|------------|
-| 00 | Setup: структура репо, миграция metrics_snapshots, Pest | stages/stage-00-setup.md | in progress | — |
+| 00 | Setup: структура репо, миграция metrics_snapshots, Pest | stages/stage-00-setup.md | done | — |
 | 01 | Core-модели + контракт DataSourceAdapter | stages/stage-01-core-models.md | not started | 00 |
 | 02 | MockAdapter | stages/stage-02-mock-adapter.md | not started | 01 |
 | 03 | Widgets (Chart.js) | stages/stage-03-widgets.md | not started | 02 |

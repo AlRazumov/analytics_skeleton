@@ -5,27 +5,26 @@
 агрегаций — без бизнес-логики.
 
 ## Подэтапы
-- [ ] Инициализировать Laravel-проект — отложено до подъёма Sail
-      (на локальной машине нет ни одного PDO-драйвера — sqlite/mysql/
-      pgsql, и нет sudo для их установки; ставить Laravel без рабочей
-      БД-связки нет смысла, сделаем это вместе с Sail-контейнером)
-- [ ] Создать пустые namespace-директории: core/, adapters/, widgets/,
-      presentation/ (с .gitkeep или базовым файлом-заглушкой) —
-      отложено вместе с инициализацией Laravel-проекта
-- [ ] Настроить Pest как тестовый раннер — отложено вместе с Laravel
-- [ ] Создать миграцию таблицы metrics_snapshots (entity_type,
-      entity_id, metric_key, value, period) — только схема, без моделей
-      и бизнес-логики — отложено вместе с Laravel
+- [x] Инициализировать Laravel-проект — установлен через Docker/Sail
+      (`laravel.build?with=pgsql`), в обход отсутствия локальных
+      PDO-драйверов; см. docs/reports/stage-00-report.md
+- [x] Создать пустые namespace-директории: app/Core/, app/Adapters/,
+      app/Widgets/, app/Presentation/ (с .gitkeep)
+- [x] Настроить Pest как тестовый раннер (pestphp/pest +
+      pest-plugin-laravel), дефолтные тесты проходят
+- [x] Создать миграцию таблицы metrics_snapshots (entity_type,
+      entity_id, metric_key, value, value_meta, period) — только
+      схема, без моделей и бизнес-логики
 - [x] Убедиться, что docs/CLAUDE.md, docs/roadmap.md на месте
 - [x] Инициализировать git-репозиторий и закоммитить текущую
       документацию (CLAUDE.md, docs/)
 
 ## Acceptance criteria
-- [ ] `php artisan test` (или `pest`) успешно запускается (даже без
+- [x] `php artisan test` (или `pest`) успешно запускается (даже без
       тестов — раннер должен быть настроен и рабочий)
-- [ ] Миграция накатывается и откатывается без ошибок
+- [x] Миграция накатывается и откатывается без ошибок
       (up/down проверены)
-- [ ] Структура директорий соответствует CLAUDE.md, лишних файлов
+- [x] Структура директорий соответствует CLAUDE.md, лишних файлов
       Laravel-скелета, не относящихся к архитектуре, не оставлено
       бесконтрольно (стандартный Laravel boilerplate — ок)
 
