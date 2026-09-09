@@ -21,6 +21,7 @@ it('constructs with given values', function () {
         ->and($movement->quantity)->toBe(5.0)
         ->and($movement->type)->toBe(StockMovementType::In)
         ->and($movement->date)->toBe($date)
+        ->and($movement->toWarehouseId)->toBeNull()
         ->and($movement->meta)->toBe(['note' => 'test']);
 });
 
@@ -45,7 +46,72 @@ it('is immutable', function () {
         quantity: 1.0,
         type: StockMovementType::Transfer,
         date: new DateTimeImmutable(),
+        toWarehouseId: 'w2',
     );
 
     expect(fn () => $movement->quantity = 2.0)->toThrow(Error::class);
+});
+
+it('allows In without toWarehouseId', function () {
+    $movement = new StockMovement(
+        id: 'm1',
+        productId: 'p1',
+        warehouseId: 'w1',
+        quantity: 1.0,
+        type: StockMovementType::In,
+        date: new DateTimeImmutable(),
+    );
+
+    expect($movement->toWarehouseId)->toBeNull();
+});
+
+it('allows Out without toWarehouseId', function () {
+    $movement = new StockMovement(
+        id: 'm1',
+        productId: 'p1',
+        warehouseId: 'w1',
+        quantity: 1.0,
+        type: StockMovementType::Out,
+        date: new DateTimeImmutable(),
+    );
+
+    expect($movement->toWarehouseId)->toBeNull();
+});
+
+it('throws when Transfer is created without toWarehouseId', function () {
+    expect(fn () => new StockMovement(
+        id: 'm1',
+        productId: 'p1',
+        warehouseId: 'w1',
+        quantity: 1.0,
+        type: StockMovementType::Transfer,
+        date: new DateTimeImmutable(),
+    ))->toThrow(InvalidArgumentException::class);
+});
+
+it('throws when In/Out is created with toWarehouseId', function () {
+    expect(fn () => new StockMovement(
+        id: 'm1',
+        productId: 'p1',
+        warehouseId: 'w1',
+        quantity: 1.0,
+        type: StockMovementType::In,
+        date: new DateTimeImmutable(),
+        toWarehouseId: 'w2',
+    ))->toThrow(InvalidArgumentException::class);
+});
+
+it('allows Transfer with toWarehouseId', function () {
+    $movement = new StockMovement(
+        id: 'm1',
+        productId: 'p1',
+        warehouseId: 'w1',
+        quantity: 1.0,
+        type: StockMovementType::Transfer,
+        date: new DateTimeImmutable(),
+        toWarehouseId: 'w2',
+    );
+
+    expect($movement->warehouseId)->toBe('w1')
+        ->and($movement->toWarehouseId)->toBe('w2');
 });

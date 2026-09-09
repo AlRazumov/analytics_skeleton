@@ -93,5 +93,38 @@ Eloquent/DB-зависимостей, как и требуется архите�
 Не возникло. Все архитектурные решения реализованы как зафиксировано
 в stage-файле, без пересмотра.
 
+## Изменения после первичной реализации
+
+**2026-09-09, перед началом Этапа 02.** Обнаружена несостыковка:
+`StockMovementType::Transfer` уже существовал как значение enum, но
+`StockMovement` нёс только одно поле `warehouseId` — физически
+невозможно было выразить пару "откуда → куда" для перемещения между
+складами. Исправлено:
+- `app/Core/Domain/StockMovement.php` — добавлено nullable-поле
+  `toWarehouseId`. Семантика задокументирована в докблоках у класса и
+  у полей: для `In`/`Out` используется только `warehouseId`,
+  `toWarehouseId` остаётся `null`; для `Transfer` `warehouseId` —
+  источник (from), `toWarehouseId` обязателен. В конструкторе
+  добавлена валидация (`InvalidArgumentException` при нарушении
+  инварианта в любую сторону).
+- `app/Core/Staging/StagingStockMovement.php` — добавлено
+  `to_warehouse_external_id` в `$fillable`, симметрично
+  `warehouse_external_id`.
+- `database/migrations/2026_09_09_000000_add_to_warehouse_external_id_to_staging_stock_movements_table.php`
+  — новая миграция (существующая миграция
+  `2026_09_08_184934_create_staging_stock_movements_table.php` не
+  переписывалась задним числом), добавляет nullable-колонку
+  `to_warehouse_external_id`. up/down проверены.
+- Тесты: `tests/Unit/Core/Domain/StockMovementTest.php` дополнен
+  кейсами (In/Out без `toWarehouseId` — валидно; `Transfer` без
+  `toWarehouseId` — исключение; `Transfer` с `toWarehouseId` —
+  валидно); `tests/Feature/Core/Staging/StagingModelsTest.php`
+  дополнен кейсом создания записи с `to_warehouse_external_id`.
+  `Product` не затронут — привязки к складу там нет и не появилась.
+
+Не вводилась отдельная доменная сущность `Location`/`Warehouse` — не
+обоснована текущими задачами, строковых `warehouseId`/`toWarehouseId`
+достаточно.
+
 ## Следующий шаг
 Этап 02 (MockAdapter) не начинался, как и было указано в задаче.

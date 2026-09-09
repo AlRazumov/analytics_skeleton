@@ -12,6 +12,7 @@ class StagingStockMovement extends Model
         'external_id',
         'product_external_id',
         'warehouse_external_id',
+        'to_warehouse_external_id',
         'quantity',
         'type',
         'occurred_at',

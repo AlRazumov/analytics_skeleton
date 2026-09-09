@@ -46,6 +46,28 @@ it('creates a staging stock movement', function () {
         'synced_at' => now(),
     ]);
 
-    expect($movement->exists)->toBeTrue();
+    expect($movement->exists)->toBeTrue()
+        ->and($movement->to_warehouse_external_id)->toBeNull();
     $this->assertDatabaseHas('staging_stock_movements', ['external_id' => 'ext-1']);
+});
+
+it('creates a staging stock movement with a destination warehouse for transfer', function () {
+    $movement = StagingStockMovement::create([
+        'external_id' => 'ext-2',
+        'product_external_id' => 'ext-product-1',
+        'warehouse_external_id' => 'ext-warehouse-1',
+        'to_warehouse_external_id' => 'ext-warehouse-2',
+        'quantity' => 10,
+        'type' => 'transfer',
+        'occurred_at' => now(),
+        'meta' => null,
+        'synced_at' => now(),
+    ]);
+
+    expect($movement->exists)->toBeTrue()
+        ->and($movement->to_warehouse_external_id)->toBe('ext-warehouse-2');
+    $this->assertDatabaseHas('staging_stock_movements', [
+        'external_id' => 'ext-2',
+        'to_warehouse_external_id' => 'ext-warehouse-2',
+    ]);
 });
