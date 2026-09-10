@@ -11,7 +11,7 @@
 | 00 | Setup: структура репо, миграция metrics_snapshots, Pest | stages/stage-00-setup.md | done | — |
 | 01 | Core-модели + контракт DataSourceAdapter | stages/stage-01-core-models.md | done (2026-09-09: постфактум-правка StockMovement — добавлено toWarehouseId для Transfer, см. отчёт) | 00 |
 | 02 | MockAdapter | stages/stage-02-mock-adapter.md | done | 01 |
-| 03 | Widgets (Chart.js) | stages/stage-03-widgets.md | not started | 02 |
+| 03 | Widgets (Chart.js) | stages/stage-03-widgets.md | done | 02 |
 | 04 | Presentation (Standalone/Iframe) | stages/stage-04-presentation.md | not started | 03 |
 | 05 | Bitrix24Adapter | — | not planned (ждёт клиента) | 01 |
 | 06 | OneCAdapter | — | not planned (ждёт клиента) | 01 |
