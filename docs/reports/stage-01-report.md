@@ -86,7 +86,7 @@ Eloquent/DB-зависимостей, как и требуется архите�
 ./vendor/bin/sail artisan migrate            — 3 новые миграции применены
 ./vendor/bin/sail artisan migrate:rollback   — откат чистый (down())
 ./vendor/bin/sail artisan migrate            — повторное применение чистое
-./vendor/bin/sail artisan test               — 16 тестов, 34 assertions, всё зелёное
+./vendor/bin/sail artisan test               — 22 теста, 34 assertions, всё зелёное
 ```
 
 ## Блокеры / неоднозначности

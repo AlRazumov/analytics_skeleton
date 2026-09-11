@@ -16,3 +16,13 @@
 | 05 | Presentation (Standalone/Iframe) | stages/stage-05-presentation.md | not started | 03 |
 | 06 | Bitrix24Adapter | — | not planned (ждёт клиента) | 01 |
 | 07 | OneCAdapter | — | not planned (ждёт клиента) | 01 |
+
+## TODO before real adapters
+
+Пункты, которые нужно пересмотреть перед стартом этапов 06/07 (реальные,
+нестейтлес-адаптеры), а не при их планировании задним числом:
+
+- ⚠ Перед реализацией: пересмотреть `MetricsCalculationService`
+  (тройной вызов `fetch*` за прогон) — см.
+  `docs/reports/stage-04-report.md`, раздел «Наблюдение: контракт
+  "один вызов fetch* за прогон" не соблюдается буквально».

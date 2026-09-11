@@ -15,7 +15,8 @@
 - [x] Создать миграцию таблицы metrics_snapshots (entity_type,
       entity_id, metric_key, value, value_meta, period) — только
       схема, без моделей и бизнес-логики
-- [x] Убедиться, что docs/CLAUDE.md, docs/roadmap.md на месте
+- [x] Убедиться, что CLAUDE.md (в корне проекта), docs/roadmap.md на
+      месте
 - [x] Инициализировать git-репозиторий и закоммитить текущую
       документацию (CLAUDE.md, docs/)
 
