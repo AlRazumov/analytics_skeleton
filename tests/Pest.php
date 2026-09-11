@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Contracts\DataSourceAdapter;
+use App\Core\Domain\DateRange;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +49,36 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Фейковый DataSourceAdapter для unit-тестов core/Analytics: отдаёт
+ * заранее заданные Deal/StockMovement независимо от переданного
+ * периода — вызывающий уже отвечает за то, что передаёт диапазон,
+ * фейку незачем его перепроверять.
+ */
+function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceAdapter
+{
+    return new class($deals, $stockMovements) implements DataSourceAdapter
+    {
+        public function __construct(
+            private array $deals,
+            private array $stockMovements,
+        ) {}
+
+        public function fetchDeals(DateRange $period): iterable
+        {
+            return $this->deals;
+        }
+
+        public function fetchProducts(): iterable
+        {
+            return [];
+        }
+
+        public function fetchStockMovements(DateRange $period): iterable
+        {
+            return $this->stockMovements;
+        }
+    };
 }

@@ -1,0 +1,120 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Adapters\Mock\MockDataProfile;
+use App\Adapters\MockAdapter;
+use App\Core\Analytics\MetricsCalculationService;
+use App\Core\Domain\DateRange;
+use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
+use App\Models\MetricsSnapshot;
+use DateTimeImmutable;
+use Illuminate\Console\Command;
+use InvalidArgumentException;
+
+/**
+ * Прогоняет расчётный пайплайн (core/Analytics) по MockAdapter и пишет
+ * результат в metrics_snapshots через MetricsSnapshotWriter.
+ *
+ * MockAdapter инстанцируется здесь напрямую (не через контейнер) —
+ * осознанное решение, единственная текущая реализация DataSourceAdapter,
+ * реального источника (Bitrix24/1С) ещё нет. Расчётная логика
+ * (MetricsCalculationService) ничего об этом не знает и принимает
+ * только контракт DataSourceAdapter — при появлении второго адаптера
+ * или при переносе в Job меняется только эта команда.
+ */
+class CalculateMetrics extends Command
+{
+    protected $signature = 'metrics:calculate {--profile=medium} {--period=}';
+
+    protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover) из DataSourceAdapter в metrics_snapshots';
+
+    private const array METRIC_KEYS = ['revenue', 'abc_xyz_classification', 'turnover'];
+
+    public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer): int
+    {
+        try {
+            $profile = $this->resolveProfile((string) $this->option('profile'));
+            $dateRange = $this->resolvePeriod($this->option('period'));
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $adapter = new MockAdapter($profile);
+
+        $this->info(sprintf(
+            'Расчёт метрик: профиль=%s, период=%s..%s',
+            $profile->value,
+            $dateRange->start->format('Y-m-d'),
+            $dateRange->end->format('Y-m-d'),
+        ));
+
+        $records = $service->calculate($adapter, $dateRange);
+
+        $this->deleteExistingSnapshots($dateRange);
+        $writer->write($records);
+
+        $this->info(sprintf('Готово: записано снэпшотов — %d.', count($records)));
+
+        return self::SUCCESS;
+    }
+
+    private function resolveProfile(string $value): MockDataProfile
+    {
+        $profile = MockDataProfile::tryFrom($value);
+
+        if ($profile === null) {
+            $allowed = implode('|', array_map(static fn (MockDataProfile $p) => $p->value, MockDataProfile::cases()));
+
+            throw new InvalidArgumentException("Неверный --profile='{$value}'. Допустимые значения: {$allowed}.");
+        }
+
+        return $profile;
+    }
+
+    private function resolvePeriod(?string $value): DateRange
+    {
+        if ($value === null || $value === '') {
+            $now = new DateTimeImmutable('first day of this month');
+
+            return new DateRange($now->modify('-11 months'), $now->modify('last day of this month'));
+        }
+
+        if (! preg_match('/^(\d{4}-\d{2}):(\d{4}-\d{2})$/', $value, $matches)) {
+            throw new InvalidArgumentException("Неверный формат --period='{$value}'. Ожидается 'YYYY-MM:YYYY-MM'.");
+        }
+
+        try {
+            $start = new DateTimeImmutable($matches[1].'-01');
+            $end = new DateTimeImmutable($matches[2].'-01');
+        } catch (\Exception) {
+            throw new InvalidArgumentException("Неверный формат --period='{$value}'. Ожидается 'YYYY-MM:YYYY-MM'.");
+        }
+
+        if ($start > $end) {
+            throw new InvalidArgumentException("Неверный --period='{$value}': начало периода позже конца.");
+        }
+
+        return new DateRange($start, $end->modify('last day of this month'));
+    }
+
+    private function deleteExistingSnapshots(DateRange $dateRange): void
+    {
+        $cursor = new DateTimeImmutable($dateRange->start->format('Y-m-01'));
+        $last = new DateTimeImmutable($dateRange->end->format('Y-m-01'));
+
+        $periods = [];
+        while ($cursor <= $last) {
+            $periods[] = $cursor->format('Y-m');
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        MetricsSnapshot::query()
+            ->where('entity_type', 'product')
+            ->whereIn('metric_key', self::METRIC_KEYS)
+            ->whereIn('period', $periods)
+            ->delete();
+    }
+}

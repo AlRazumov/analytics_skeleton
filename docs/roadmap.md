@@ -12,6 +12,7 @@
 | 01 | Core-модели + контракт DataSourceAdapter | stages/stage-01-core-models.md | done (2026-09-09: постфактум-правка StockMovement — добавлено toWarehouseId для Transfer, см. отчёт) | 00 |
 | 02 | MockAdapter | stages/stage-02-mock-adapter.md | done | 01 |
 | 03 | Widgets (Chart.js) | stages/stage-03-widgets.md | done | 02 |
-| 04 | Presentation (Standalone/Iframe) | stages/stage-04-presentation.md | not started | 03 |
-| 05 | Bitrix24Adapter | — | not planned (ждёт клиента) | 01 |
-| 06 | OneCAdapter | — | not planned (ждёт клиента) | 01 |
+| 04 | Расчётный пайплайн (adapters → metrics_snapshots) | stages/stage-04-metrics-pipeline.md | done | 02, 03 |
+| 05 | Presentation (Standalone/Iframe) | stages/stage-05-presentation.md | not started | 03 |
+| 06 | Bitrix24Adapter | — | not planned (ждёт клиента) | 01 |
+| 07 | OneCAdapter | — | not planned (ждёт клиента) | 01 |
