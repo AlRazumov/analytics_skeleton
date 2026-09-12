@@ -65,3 +65,25 @@
   `created_at` на пачку). Контракт метода и сигнатура не менялись,
   ABC/XYZ-классификатор не трогался. Регрессионный тест —
   `tests/Feature/Repositories/EloquentMetricsSnapshotRepositoryTest.php`.
+
+## Known issues (осознанно не исправляется)
+
+- Pint: 7 нарушений (`ordered_imports`, `single_line_empty_body`×3,
+  `new_with_parentheses`×3) в файлах этапа 01 (`DataSourceAdapter`,
+  `DateRange`, `Deal`, `Product` + их тесты) — см. `docs/reports/
+  stage-02-report.md`. Осознанно не исправляются: действует правило
+  CLAUDE.md «файлы этапов не переписываются задним числом».
+  Функционально безвредно. Могут быть поправлены только попутно, если
+  эти файлы будут открыты по другой причине (реальный баг/доработка),
+  не отдельным заходом ради pint-чистоты.
+
+- Пустые `app/Widgets/` и `app/Presentation/` (только `.gitkeep` со
+  stage-00) — расхождение с деревом каталогов в CLAUDE.md. Реальный
+  код виджетов лежит в `app/Core/Widgets/`, а presentation — в
+  `resources/views/*` и `app/Http/Controllers/Dashboards/*`; причины
+  задокументированы в `docs/reports/stage-03-report.md`. Решение
+  отложено: нужно ли выделять отдельные namespace'ы под
+  widgets/presentation, станет понятно только когда появятся реальные
+  адаптеры (`Bitrix24Adapter`/`OneCAdapter`) и будет видно, тянет ли
+  реальная нагрузка на такое разделение, или текущая плоская структура
+  остаётся рабочей. Не зачищать и не решать вопрос сейчас.
