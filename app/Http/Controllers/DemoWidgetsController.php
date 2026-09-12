@@ -23,7 +23,7 @@ class DemoWidgetsController extends Controller
             'barChart' => $widgets->lineChartYoY('product', 'revenue', $period),
             'table' => $widgets->table('product', 'revenue', $period),
             'kpiCard' => $widgets->kpiCard('product', 'revenue', $period, unit: '₽'),
-            'matrix' => $widgets->abcXyzMatrix($period),
+            'matrix' => $widgets->abcXyzMatrix(),
         ]);
     }
 }

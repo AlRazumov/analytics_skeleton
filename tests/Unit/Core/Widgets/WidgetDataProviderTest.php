@@ -21,6 +21,25 @@ function fakeRepository(array $records): MetricsSnapshotRepository
                     && in_array($r->period, $periodKeys, true),
             ));
         }
+
+        public function latestPeriodFor(string $entityType, string $metricKey): ?string
+        {
+            $periods = array_map(
+                fn (MetricsSnapshotRecord $r) => $r->period,
+                array_filter(
+                    $this->records,
+                    fn (MetricsSnapshotRecord $r) => $r->entityType === $entityType && $r->metricKey === $metricKey,
+                ),
+            );
+
+            if ($periods === []) {
+                return null;
+            }
+
+            rsort($periods);
+
+            return $periods[0];
+        }
     };
 }
 
@@ -49,13 +68,46 @@ it('builds abc/xyz matrix cells grouped by value_meta', function () {
         new MetricsSnapshotRecord('product', 'prod-3', 'abc_xyz_classification', 10.0, '2026-01', ['abc_class' => 'C', 'xyz_class' => 'Z']),
     ]);
     $provider = new WidgetDataProvider($repo);
-    $period = new Period(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
 
-    $matrix = $provider->abcXyzMatrix($period);
+    $matrix = $provider->abcXyzMatrix();
 
     $axCell = collect($matrix->cells)->first(fn ($c) => $c->rowKey === 'A' && $c->colKey === 'X');
     expect($axCell->itemsCount)->toBe(2);
     expect($axCell->value)->toBe(300.0);
+});
+
+it('ignores stale ABC/XYZ snapshots from an earlier metrics:calculate run and uses only the latest period', function () {
+    // Регрессионный тест против бага "матрица пустая при рассинхроне
+    // периода прогона и периода, который запрашивал consumer" (см.
+    // docs/roadmap.md, был в разделе Known issues). abcXyzMatrix()
+    // больше не принимает Period снаружи — сам находит актуальный
+    // period через latestPeriodFor(), поэтому старые снэпшоты от
+    // предыдущего прогона с другим диапазоном не должны примешиваться.
+    $repo = fakeRepository([
+        // Прошлый прогон metrics:calculate — диапазон закончился в 2025-12.
+        new MetricsSnapshotRecord('product', 'prod-1', 'abc_xyz_classification', 999.0, '2025-12', ['abc_class' => 'C', 'xyz_class' => 'Z']),
+        // Последний прогон — диапазон закончился в 2026-06.
+        new MetricsSnapshotRecord('product', 'prod-1', 'abc_xyz_classification', 100.0, '2026-06', ['abc_class' => 'A', 'xyz_class' => 'X']),
+    ]);
+    $provider = new WidgetDataProvider($repo);
+
+    $matrix = $provider->abcXyzMatrix();
+
+    expect($matrix->cells)->toHaveCount(1);
+    expect($matrix->cells[0]->rowKey)->toBe('A');
+    expect($matrix->cells[0]->colKey)->toBe('X');
+    expect($matrix->cells[0]->value)->toBe(100.0);
+});
+
+it('returns an empty matrix when there are no ABC/XYZ snapshots yet', function () {
+    $repo = fakeRepository([]);
+    $provider = new WidgetDataProvider($repo);
+
+    $matrix = $provider->abcXyzMatrix();
+
+    expect($matrix->rowLabels)->toBe([]);
+    expect($matrix->colLabels)->toBe([]);
+    expect($matrix->cells)->toBe([]);
 });
 
 it('computes kpi delta against the preceding period of the same length', function () {

@@ -104,13 +104,26 @@ final readonly class WidgetDataProvider
      * Группирует снэпшоты ABC/XYZ-классификации (value_meta: abc_class,
      * xyz_class) по ячейкам матрицы. itemsCount — число сущностей в
      * ячейке, value — сумма их значений (например, выручки).
+     *
+     * Не принимает Period: ABC/XYZ-снэпшот не образует помесячную
+     * серию (см. докблок MetricsSnapshotRepository::latestPeriodFor()),
+     * поэтому "какой period запрашивать" — не решение вызывающего
+     * кода, а знание репозитория. Раньше consumer передавал сюда
+     * произвольный Period, и при его рассинхроне с периодом реального
+     * прогона metrics:calculate матрица молча оказывалась пустой.
      */
-    public function abcXyzMatrix(Period $period): MatrixData
+    public function abcXyzMatrix(): MatrixData
     {
+        $latestPeriod = $this->repository->latestPeriodFor(self::ABC_XYZ_ENTITY_TYPE, self::ABC_XYZ_METRIC_KEY);
+
+        if ($latestPeriod === null) {
+            return new MatrixData([], [], []);
+        }
+
         $records = $this->repository->findByPeriodKeys(
             self::ABC_XYZ_ENTITY_TYPE,
             self::ABC_XYZ_METRIC_KEY,
-            $period->keys(),
+            [$latestPeriod],
         );
 
         $cells = [];

@@ -30,4 +30,13 @@ final class EloquentMetricsSnapshotRepository implements MetricsSnapshotReposito
             ))
             ->all();
     }
+
+    public function latestPeriodFor(string $entityType, string $metricKey): ?string
+    {
+        return MetricsSnapshot::query()
+            ->where('entity_type', $entityType)
+            ->where('metric_key', $metricKey)
+            ->orderByDesc('period')
+            ->value('period');
+    }
 }
