@@ -13,7 +13,7 @@
 | 02 | MockAdapter | stages/stage-02-mock-adapter.md | done | 01 |
 | 03 | Widgets (Chart.js) | stages/stage-03-widgets.md | done | 02 |
 | 04 | Расчётный пайплайн (adapters → metrics_snapshots) | stages/stage-04-metrics-pipeline.md | done | 02, 03 |
-| 05 | Presentation (Standalone/Iframe) | stages/stage-05-presentation.md | not started | 03 |
+| 05 | Presentation (StandaloneLayout) | stages/stage-05-presentation.md | done (IframeLayout вынесен на будущий этап — ждёт доступа к Б24-порталу) | 03 |
 | 06 | Bitrix24Adapter | — | not planned (ждёт клиента) | 01 |
 | 07 | OneCAdapter | — | not planned (ждёт клиента) | 01 |
 
@@ -29,3 +29,25 @@
   калькуляторы теперь принимают данные аргументом, `fetchDeals()`/
   `fetchStockMovements()` вызываются сервисом ровно по одному разу за
   `calculate()`.
+
+## Known issues
+
+- ⚠ Открыт: пустая ABC/XYZ-матрица при рассинхроне периодов. У
+  `AbcClassifier`/`XyzClassifier` `period` итоговой записи — последний
+  месяц ВСЕГО диапазона, переданного в `calculate()`, а не помесячно
+  (см. докблоки классов). Виджет `abcXyzMatrix()` в
+  `WidgetDataProvider` читает `metrics_snapshots` по ключам конкретного
+  `Period`, который ему передаёт контроллер. Если `metrics:calculate`
+  прогнан с диапазоном, чей последний месяц не совпадает с периодом,
+  который просит контроллер (например, дефолтный прогон
+  `metrics:calculate` без `--period` считает за последние 12 месяцев
+  до текущей даты, а `DemoWidgetsController`/дашборды этапа 5 жёстко
+  просят `2026-01..2026-06`) — матрица окажется пустой, без ошибки.
+  Предсуществующий баг (не внесён этапом 05, presentation-слой его не
+  создавал и не менял) — воспроизводится и на `demo/widgets` (этап
+  03/04). Зафиксировано явно здесь, чтобы не всплыл как "баг
+  presentation-слоя" на демонстрации клиенту. Не исправлено — фикс вне
+  рамок текущей задачи (варианты: считать ABC/XYZ помесячно, либо
+  синхронизировать период контроллеров с периодом реального прогона
+  `metrics:calculate`, либо явно предупреждать в UI об отсутствии
+  данных за период).
