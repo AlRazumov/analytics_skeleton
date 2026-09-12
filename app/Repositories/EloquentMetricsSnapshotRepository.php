@@ -36,7 +36,8 @@ final class EloquentMetricsSnapshotRepository implements MetricsSnapshotReposito
         return MetricsSnapshot::query()
             ->where('entity_type', $entityType)
             ->where('metric_key', $metricKey)
-            ->orderByDesc('period')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->value('period');
     }
 }

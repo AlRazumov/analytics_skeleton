@@ -18,7 +18,8 @@ interface MetricsSnapshotRepository
     public function findByPeriodKeys(string $entityType, string $metricKey, array $periodKeys): array;
 
     /**
-     * Ключ `period` самого свежего (по сортировке period DESC) снэпшота
+     * Ключ `period` снэпшота, рассчитанного последним по факту (по
+     * моменту записи в БД — `created_at`, а не по значению `period`),
      * для (entityType, metricKey), или null, если снэпшотов ещё нет.
      *
      * Единственный источник знания о том, как искать "актуальный"
@@ -31,6 +32,12 @@ interface MetricsSnapshotRepository
      * этот period самостоятельно — раньше это дублировалось в каждом
      * контроллере и расходилось с реальным периодом прогона
      * metrics:calculate.
+     *
+     * Важно: "самый свежий" — это снэпшот с наибольшим `created_at`
+     * (моментом записи), а НЕ снэпшот с лексикографически/численно
+     * наибольшим `period`. При бэкфилле старого периода поверх уже
+     * посчитанного более позднего period это два разных снэпшота —
+     * см. отчёт по бэкфилл-багу в docs/reports.
      */
     public function latestPeriodFor(string $entityType, string $metricKey): ?string;
 }
