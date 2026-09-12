@@ -43,6 +43,26 @@ it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classificatio
     expect($byId['prod-1']->period)->toBe('2026-02');
 });
 
+it('calls fetchDeals() and fetchStockMovements() exactly once per calculate(), not once per calculator', function () {
+    // Регрессионный тест против исходной проблемы (см. docs/roadmap.md
+    // и docs/reports/stage-04-report.md): раньше fetchDeals()
+    // вызывался трижды (RevenueByPeriodCalculator, AbcClassifier,
+    // XyzClassifier дергали адаптер независимо), а fetchStockMovements()
+    // — отдельно из TurnoverCalculator. Проверяем не "результат тот же",
+    // а сам факт единственного вызова каждого fetch*-метода.
+    $deals = [
+        new Deal('d-1', 'prod-1', 100.0, new DateTimeImmutable('2026-01-05')),
+    ];
+    $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
+
+    $adapter = fakeAdapter($deals);
+
+    (new MetricsCalculationService)->calculate($adapter, $period);
+
+    expect($adapter->fetchDealsCalls)->toBe(1);
+    expect($adapter->fetchStockMovementsCalls)->toBe(1);
+});
+
 it('throws when ABC and XYZ records for the same entityId disagree on period', function () {
     // Инвариант mergeAbcXyz(): оба классификатора всегда кладут
     // одинаковый period для одного товара. Реальные AbcClassifier и

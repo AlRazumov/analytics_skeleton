@@ -13,7 +13,7 @@ it('aggregates revenue by (product, month)', function () {
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-02-28'));
 
-    $records = (new RevenueByPeriodCalculator)->calculate(fakeAdapter($deals), $period);
+    $records = (new RevenueByPeriodCalculator)->calculate($deals, $period);
 
     $byKey = collect($records)->keyBy(fn ($r) => $r->entityId.'|'.$r->period);
 

@@ -20,7 +20,7 @@ it('classifies stable demand as X, volatile demand as Z, and no-demand product a
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-03-31'));
 
-    $records = (new XyzClassifier)->calculate(fakeAdapter($deals), $period);
+    $records = (new XyzClassifier)->calculate($deals, $period);
     $byId = collect($records)->keyBy('entityId');
 
     expect($byId['prod-1']->valueMeta)->toBe(['xyz_class' => 'X']);
@@ -42,7 +42,7 @@ it('classifies stable demand as X, volatile demand as Z, and no-demand product a
 it('returns no records when there are no deals in the period', function () {
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-03-31'));
 
-    $records = (new XyzClassifier)->calculate(fakeAdapter([]), $period);
+    $records = (new XyzClassifier)->calculate([], $period);
 
     expect($records)->toBe([]);
 });

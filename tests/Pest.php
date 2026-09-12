@@ -56,11 +56,22 @@ function something()
  * заранее заданные Deal/StockMovement независимо от переданного
  * периода — вызывающий уже отвечает за то, что передаёт диапазон,
  * фейку незачем его перепроверять.
+ *
+ * Считает количество вызовов fetchDeals()/fetchStockMovements()
+ * ($fetchDealsCalls / $fetchStockMovementsCalls) — используется в
+ * MetricsCalculationServiceTest как регрессионный тест против
+ * повторных вызовов адаптера из нескольких калькуляторов (см.
+ * docs/reports/stage-04-report.md, раздел "Наблюдение: контракт «один
+ * вызов fetch* за прогон» не соблюдается буквально").
  */
 function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceAdapter
 {
     return new class($deals, $stockMovements) implements DataSourceAdapter
     {
+        public int $fetchDealsCalls = 0;
+
+        public int $fetchStockMovementsCalls = 0;
+
         public function __construct(
             private array $deals,
             private array $stockMovements,
@@ -68,6 +79,8 @@ function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceA
 
         public function fetchDeals(DateRange $period): iterable
         {
+            $this->fetchDealsCalls++;
+
             return $this->deals;
         }
 
@@ -78,6 +91,8 @@ function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceA
 
         public function fetchStockMovements(DateRange $period): iterable
         {
+            $this->fetchStockMovementsCalls++;
+
             return $this->stockMovements;
         }
     };

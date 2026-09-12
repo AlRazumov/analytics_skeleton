@@ -17,6 +17,15 @@ use RuntimeException;
  * без изменений (см. отчёт stage-04, требование "логика отделена от
  * команды").
  *
+ * Единственное место, вызывающее DataSourceAdapter::fetchDeals() и
+ * ::fetchStockMovements() — ровно по одному разу за calculate(), как и
+ * декларирует докблок DataSourceAdapter ("каждый метод вызывается один
+ * раз за прогон"). Раньше это нарушалось (fetchDeals() вызывался трижды
+ * — независимо из RevenueByPeriodCalculator/AbcClassifier/XyzClassifier
+ * — см. docs/roadmap.md и docs/reports/stage-04-report.md); теперь
+ * калькуляторы получают уже готовые данные аргументом и сами адаптер не
+ * трогают.
+ *
  * AbcClassifier и XyzClassifier независимо считают свою часть
  * классификации и каждый пишет только свою часть value_meta
  * (abc_class / xyz_class) в один и тот же metric_key
@@ -41,13 +50,21 @@ final class MetricsCalculationService
      */
     public function calculate(DataSourceAdapter $adapter, DateRange $period): array
     {
+        // fetchDeals() отдаётся revenue/abc/xyz-калькуляторам одним и
+        // тем же значением — если адаптер вернёт Generator (как
+        // MockAdapter), он допускает только однократный обход, поэтому
+        // материализуем в массив сразу после единственного вызова.
+        $rawDeals = $adapter->fetchDeals($period);
+        $deals = is_array($rawDeals) ? $rawDeals : iterator_to_array($rawDeals);
+        $stockMovements = $adapter->fetchStockMovements($period);
+
         $records = [
-            ...$this->revenue->calculate($adapter, $period),
+            ...$this->revenue->calculate($deals, $period),
             ...$this->mergeAbcXyz(
-                $this->abc->calculate($adapter, $period),
-                $this->xyz->calculate($adapter, $period),
+                $this->abc->calculate($deals, $period),
+                $this->xyz->calculate($deals, $period),
             ),
-            ...$this->turnover->calculate($adapter, $period),
+            ...$this->turnover->calculate($stockMovements, $period),
         ];
 
         return $records;

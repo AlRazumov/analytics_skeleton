@@ -2,13 +2,13 @@
 
 namespace App\Core\Analytics;
 
-use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Deal;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 
 /**
- * Выручка по (товар, месяц) из fetchDeals(). Один снэпшот на пару
- * (productId, 'Y-m'), metric_key='revenue'.
+ * Выручка по (товар, месяц) из набора Deal (см. DataSourceAdapter::fetchDeals()).
+ * Один снэпшот на пару (productId, 'Y-m'), metric_key='revenue'.
  */
 final class RevenueByPeriodCalculator
 {
@@ -17,12 +17,13 @@ final class RevenueByPeriodCalculator
     private const string METRIC_KEY = 'revenue';
 
     /**
+     * @param  iterable<Deal>  $deals
      * @return MetricsSnapshotRecord[]
      */
-    public function calculate(DataSourceAdapter $adapter, DateRange $period): array
+    public function calculate(iterable $deals, DateRange $period): array
     {
         $byProductAndMonth = [];
-        foreach ($adapter->fetchDeals($period) as $deal) {
+        foreach ($deals as $deal) {
             $month = $deal->date->format('Y-m');
             $byProductAndMonth[$deal->productId][$month] = ($byProductAndMonth[$deal->productId][$month] ?? 0.0) + $deal->amount;
         }

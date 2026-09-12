@@ -2,8 +2,8 @@
 
 namespace App\Core\Analytics;
 
-use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Deal;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 
 /**
@@ -36,12 +36,13 @@ final class AbcClassifier
     private const float THRESHOLD_B = 0.95;
 
     /**
+     * @param  iterable<Deal>  $deals
      * @return MetricsSnapshotRecord[]
      */
-    public function calculate(DataSourceAdapter $adapter, DateRange $period): array
+    public function calculate(iterable $deals, DateRange $period): array
     {
         $totalByProduct = [];
-        foreach ($adapter->fetchDeals($period) as $deal) {
+        foreach ($deals as $deal) {
             $totalByProduct[$deal->productId] = ($totalByProduct[$deal->productId] ?? 0.0) + $deal->amount;
         }
 

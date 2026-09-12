@@ -2,8 +2,8 @@
 
 namespace App\Core\Analytics;
 
-use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Deal;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use DateTimeImmutable;
 
@@ -43,9 +43,10 @@ final class XyzClassifier
     private const float THRESHOLD_Y = 0.25;
 
     /**
+     * @param  iterable<Deal>  $deals
      * @return MetricsSnapshotRecord[]
      */
-    public function calculate(DataSourceAdapter $adapter, DateRange $period): array
+    public function calculate(iterable $deals, DateRange $period): array
     {
         $months = $this->monthKeys($period);
         if ($months === []) {
@@ -53,7 +54,7 @@ final class XyzClassifier
         }
 
         $byProductAndMonth = [];
-        foreach ($adapter->fetchDeals($period) as $deal) {
+        foreach ($deals as $deal) {
             $month = $deal->date->format('Y-m');
             $byProductAndMonth[$deal->productId][$month] = ($byProductAndMonth[$deal->productId][$month] ?? 0.0) + $deal->amount;
         }

@@ -2,9 +2,9 @@
 
 namespace App\Core\Analytics;
 
-use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\StockMovementType;
+use App\Core\Domain\StockMovement;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use DateTimeImmutable;
 
@@ -36,9 +36,10 @@ final class TurnoverCalculator
     private const string METRIC_KEY = 'turnover';
 
     /**
+     * @param  iterable<StockMovement>  $movements
      * @return MetricsSnapshotRecord[]
      */
-    public function calculate(DataSourceAdapter $adapter, DateRange $period): array
+    public function calculate(iterable $movements, DateRange $period): array
     {
         $months = $this->monthKeys($period);
         if ($months === []) {
@@ -51,7 +52,7 @@ final class TurnoverCalculator
         $netByProductAndMonth = [];
         $outByProductAndMonth = [];
 
-        foreach ($adapter->fetchStockMovements($period) as $movement) {
+        foreach ($movements as $movement) {
             $month = $movement->date->format('Y-m');
 
             $delta = match ($movement->type) {

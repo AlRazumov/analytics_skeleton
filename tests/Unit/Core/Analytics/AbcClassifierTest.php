@@ -14,7 +14,7 @@ it('classifies by cumulative revenue share with inclusive Pareto boundaries', fu
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
 
-    $records = (new AbcClassifier)->calculate(fakeAdapter($deals), $period);
+    $records = (new AbcClassifier)->calculate($deals, $period);
     $byId = collect($records)->keyBy('entityId');
 
     // Граница 0.8: товар, кумулятивная доля которого РОВНО 0.8,
@@ -37,7 +37,7 @@ it('classifies by cumulative revenue share with inclusive Pareto boundaries', fu
 it('returns no records when there are no deals in the period', function () {
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
 
-    $records = (new AbcClassifier)->calculate(fakeAdapter([]), $period);
+    $records = (new AbcClassifier)->calculate([], $period);
 
     expect($records)->toBe([]);
 });

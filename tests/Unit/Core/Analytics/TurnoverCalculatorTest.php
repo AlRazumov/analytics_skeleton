@@ -12,7 +12,7 @@ it('computes turnover as unitsSold / avg(opening, closing) for a normal month', 
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-02-28'));
 
-    $records = (new TurnoverCalculator)->calculate(fakeAdapter([], $movements), $period);
+    $records = (new TurnoverCalculator)->calculate($movements, $period);
     $byPeriod = collect($records)->where('entityId', 'prod-1')->keyBy('period');
 
     // Январь: opening=0, closing=0+100-20=80, avgStock=(0+80)/2=40, unitsSold=20 -> 20/40.
@@ -34,7 +34,7 @@ it('does not write a snapshot for a month where avgStock is zero or negative', f
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-02-28'));
 
-    $records = (new TurnoverCalculator)->calculate(fakeAdapter([], $movements), $period);
+    $records = (new TurnoverCalculator)->calculate($movements, $period);
     $forProduct = collect($records)->where('entityId', 'prod-2');
 
     expect($forProduct)->toHaveCount(0);
@@ -48,7 +48,7 @@ it('does not let a Transfer between warehouses affect the product balance', func
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
 
-    $records = (new TurnoverCalculator)->calculate(fakeAdapter([], $movements), $period);
+    $records = (new TurnoverCalculator)->calculate($movements, $period);
     $january = collect($records)->firstWhere('entityId', 'prod-3');
 
     // Если бы Transfer ошибочно влиял на сальдо (например, как ещё
