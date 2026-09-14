@@ -14,13 +14,13 @@ it('constructs with given values', function () {
 });
 
 it('defaults meta to empty array', function () {
-    $deal = new Deal(id: '1', productId: 'p1', amount: 1.0, date: new DateTimeImmutable());
+    $deal = new Deal(id: '1', productId: 'p1', amount: 1.0, date: new DateTimeImmutable);
 
     expect($deal->meta)->toBe([]);
 });
 
 it('is immutable', function () {
-    $deal = new Deal(id: '1', productId: 'p1', amount: 1.0, date: new DateTimeImmutable());
+    $deal = new Deal(id: '1', productId: 'p1', amount: 1.0, date: new DateTimeImmutable);
 
     expect(fn () => $deal->amount = 2.0)->toThrow(Error::class);
 });

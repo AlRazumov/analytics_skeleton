@@ -9,6 +9,5 @@ final readonly class Product
         public string $name,
         public ?string $category = null,
         public array $meta = [],
-    ) {
-    }
+    ) {}
 }

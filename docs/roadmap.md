@@ -66,24 +66,38 @@
   ABC/XYZ-классификатор не трогался. Регрессионный тест —
   `tests/Feature/Repositories/EloquentMetricsSnapshotRepositoryTest.php`.
 
-## Known issues (осознанно не исправляется)
+## Known issues
 
-- Pint: 7 нарушений (`ordered_imports`, `single_line_empty_body`×3,
-  `new_with_parentheses`×3) в файлах этапа 01 (`DataSourceAdapter`,
-  `DateRange`, `Deal`, `Product` + их тесты) — см. `docs/reports/
-  stage-02-report.md`. Осознанно не исправляются: действует правило
-  CLAUDE.md «файлы этапов не переписываются задним числом».
-  Функционально безвредно. Могут быть поправлены только попутно, если
-  эти файлы будут открыты по другой причине (реальный баг/доработка),
-  не отдельным заходом ради pint-чистоты.
+- ✅ closed (2026-09-14): Pint: 7 нарушений (`ordered_imports`,
+  `single_line_empty_body`×3, `new_with_parentheses`×3) в файлах этапа
+  01 (`DataSourceAdapter`, `DateRange`, `Deal`, `Product` + их тесты) —
+  см. `docs/reports/stage-02-report.md`. Ранее осознанно не
+  исправлялись по правилу CLAUDE.md «файлы этапов не переписываются
+  задним числом» — но это правило про содержательные изменения логики,
+  а не про форматирование. При финальной уборке перед паузой проекта
+  прогнан `vendor/bin/pint` по всему проекту (реальное исправление, не
+  `--test`): исправлены ровно эти 7 файлов, логика не менялась.
+  `vendor/bin/pint --test` проходит чисто по всему проекту, полный
+  набор тестов (`sail artisan test`, 50 tests / 5822 assertions)
+  остаётся зелёным.
 
-- Пустые `app/Widgets/` и `app/Presentation/` (только `.gitkeep` со
-  stage-00) — расхождение с деревом каталогов в CLAUDE.md. Реальный
-  код виджетов лежит в `app/Core/Widgets/`, а presentation — в
-  `resources/views/*` и `app/Http/Controllers/Dashboards/*`; причины
-  задокументированы в `docs/reports/stage-03-report.md`. Решение
-  отложено: нужно ли выделять отдельные namespace'ы под
-  widgets/presentation, станет понятно только когда появятся реальные
-  адаптеры (`Bitrix24Adapter`/`OneCAdapter`) и будет видно, тянет ли
-  реальная нагрузка на такое разделение, или текущая плоская структура
-  остаётся рабочей. Не зачищать и не решать вопрос сейчас.
+- ✅ closed (2026-09-14): пустые `app/Widgets/` и `app/Presentation/`
+  (только `.gitkeep` со stage-00) — расхождение с деревом каталогов в
+  CLAUDE.md. Реальный код виджетов лежит в `app/Core/Widgets/`, а
+  presentation — в `resources/views/components/layouts/` и
+  `app/Http/Controllers/Dashboards/*`; причины задокументированы в
+  `docs/reports/stage-03-report.md`. Пустые директории удалены, дерево
+  каталогов в CLAUDE.md приведено в соответствие фактической
+  структуре. Выделение отдельных namespace'ов под widgets/presentation
+  не создавалось — это осознанно отложено до появления реальных
+  адаптеров (`Bitrix24Adapter`/`OneCAdapter`), когда будет видно, нужна
+  ли такая изоляция.
+
+## Статус проекта (2026-09-14)
+
+Этапы 00–05 полностью завершены и приняты. Этапы 06
+(`Bitrix24Adapter`) и 07 (`OneCAdapter`) — not planned, ждут появления
+реального клиента. Known issues (см. выше) закрыты, технического
+долга не осталось. Проект поставлен на паузу до появления реального
+клиента/доступа к Bitrix24/1С; следующий реальный шаг — начать этап 06
+или 07, когда появится клиент.

@@ -2,8 +2,8 @@
 
 namespace App\Core\Contracts;
 
-use App\Core\Domain\Deal;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Deal;
 use App\Core\Domain\Product;
 use App\Core\Domain\StockMovement;
 

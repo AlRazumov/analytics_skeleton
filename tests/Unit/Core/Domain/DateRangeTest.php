@@ -14,5 +14,5 @@ it('constructs with given values', function () {
 it('is immutable', function () {
     $range = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
 
-    expect(fn () => $range->start = new DateTimeImmutable())->toThrow(Error::class);
+    expect(fn () => $range->start = new DateTimeImmutable)->toThrow(Error::class);
 });

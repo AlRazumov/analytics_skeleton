@@ -8,13 +8,27 @@
 ## Архитектура
 
 ```
-core/           — доменные модели, контракты, бизнес-логика расчётов
-adapters/       — реализации DataSourceAdapter под конкретные источники
-                  (MockAdapter, Bitrix24Adapter, OneCAdapter)
-widgets/        — визуальные компоненты (Chart.js), работают только
-                  через core-модели, не знают об адаптерах
-presentation/   — способы встраивания/показа (Standalone, Iframe)
+app/Core/               — доменные модели, контракты, бизнес-логика расчётов
+app/Core/Widgets/       — виджеты (контракты, DTO, WidgetDataProvider);
+                          работают только через core-модели, не знают
+                          об адаптерах
+app/Adapters/           — реализации DataSourceAdapter под конкретные
+                          источники (MockAdapter, Bitrix24Adapter,
+                          OneCAdapter)
+app/Http/Controllers/Dashboards/ — presentation-контроллеры
+                          (способы встраивания/показа: Standalone,
+                          Iframe)
+resources/views/components/layouts/ — Blade-layout'ы presentation-слоя
+                          (standalone.blade.php и т.п.)
 ```
+
+Виджеты и presentation-контроллеры физически лежат внутри `app/Core` и
+`app/Http`, а не в отдельных верхнеуровневых namespace'ах `widgets/` /
+`presentation/` — так сложилось на этапах 03/05 (см. `docs/reports/
+stage-03-report.md`). Выделение отдельных namespace'ов — решение,
+которое имеет смысл принимать только когда появятся реальные адаптеры
+(Bitrix24Adapter/OneCAdapter) и будет видно, нужна ли такая
+изоляция.
 
 Ключевой принцип: `core` определяет контракт `DataSourceAdapter`,
 адаптеры под конкретные продукты его реализуют. `widgets` и

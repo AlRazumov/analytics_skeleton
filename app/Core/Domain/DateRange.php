@@ -9,6 +9,5 @@ final readonly class DateRange
     public function __construct(
         public DateTimeImmutable $start,
         public DateTimeImmutable $end,
-    ) {
-    }
+    ) {}
 }

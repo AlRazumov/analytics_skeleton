@@ -32,7 +32,7 @@ it('defaults meta to empty array', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::Out,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
     );
 
     expect($movement->meta)->toBe([]);
@@ -45,7 +45,7 @@ it('is immutable', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::Transfer,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
         toWarehouseId: 'w2',
     );
 
@@ -59,7 +59,7 @@ it('allows In without toWarehouseId', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::In,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
     );
 
     expect($movement->toWarehouseId)->toBeNull();
@@ -72,7 +72,7 @@ it('allows Out without toWarehouseId', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::Out,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
     );
 
     expect($movement->toWarehouseId)->toBeNull();
@@ -85,7 +85,7 @@ it('throws when Transfer is created without toWarehouseId', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::Transfer,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
     ))->toThrow(InvalidArgumentException::class);
 });
 
@@ -96,7 +96,7 @@ it('throws when In/Out is created with toWarehouseId', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::In,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
         toWarehouseId: 'w2',
     ))->toThrow(InvalidArgumentException::class);
 });
@@ -108,7 +108,7 @@ it('allows Transfer with toWarehouseId', function () {
         warehouseId: 'w1',
         quantity: 1.0,
         type: StockMovementType::Transfer,
-        date: new DateTimeImmutable(),
+        date: new DateTimeImmutable,
         toWarehouseId: 'w2',
     );
 
