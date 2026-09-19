@@ -192,3 +192,40 @@ function stockMove(string $day, string $productId, string $warehouseId, StockMov
 
     return new StockMovement('t-'.++$n, $productId, $warehouseId, $quantity, $type, new DateTimeImmutable($day.' 12:00'));
 }
+
+/** Адаптер, падающий на любом fetch*: веб-запросы страниц к источнику обращаться не должны. */
+function throwingAdapter(): DataSourceAdapter
+{
+    return new class implements DataSourceAdapter
+    {
+        public function fetchDeals(DateRange $period): iterable
+        {
+            throw new RuntimeException('adapter used: fetchDeals');
+        }
+
+        public function fetchProducts(): iterable
+        {
+            throw new RuntimeException('adapter used: fetchProducts');
+        }
+
+        public function fetchWarehouses(): iterable
+        {
+            throw new RuntimeException('adapter used: fetchWarehouses');
+        }
+
+        public function fetchStockMovements(DateRange $period): iterable
+        {
+            throw new RuntimeException('adapter used: fetchStockMovements');
+        }
+
+        public function fetchStock(?DateTimeImmutable $asOf = null): iterable
+        {
+            throw new RuntimeException('adapter used: fetchStock');
+        }
+
+        public function capabilities(): array
+        {
+            return [];
+        }
+    };
+}

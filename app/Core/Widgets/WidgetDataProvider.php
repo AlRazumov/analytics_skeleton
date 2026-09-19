@@ -4,6 +4,7 @@ namespace App\Core\Widgets;
 
 use App\Core\Domain\PeriodRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
+use App\Core\Widgets\Contracts\ProductNameResolver;
 use App\Core\Widgets\DTO\KpiCardData;
 use App\Core\Widgets\DTO\LineChartData;
 use App\Core\Widgets\DTO\MatrixCellData;
@@ -33,6 +34,7 @@ final readonly class WidgetDataProvider
 
     public function __construct(
         private MetricsSnapshotRepository $repository,
+        private ?ProductNameResolver $productNames = null,
     ) {}
 
     public function lineChart(string $entityType, string $metricKey, PeriodRange $period): LineChartData
@@ -66,17 +68,25 @@ final readonly class WidgetDataProvider
         );
     }
 
-    public function table(string $entityType, string $metricKey, PeriodRange $period): TableData
+    /**
+     * @param  bool  $productNames  entity — товар: первая колонка «Товар» с названием
+     *                              (одним вызовом резолвера на все id; нет названия — id)
+     */
+    public function table(string $entityType, string $metricKey, PeriodRange $period, bool $productNames = false): TableData
     {
         $records = $this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys());
 
+        $names = $productNames && $this->productNames !== null
+            ? $this->productNames->names(array_values(array_unique(array_map(static fn (MetricsSnapshotRecord $r) => $r->entityId, $records))))
+            : [];
+
         $rows = [];
         foreach ($records as $record) {
-            $rows[] = [$record->entityId, $this->displayLabel($record->period), $record->value];
+            $rows[] = [$names[$record->entityId] ?? $record->entityId, $this->displayLabel($record->period), $record->value];
         }
 
         return new TableData(
-            headers: ['entity_id', 'period', $metricKey],
+            headers: [$productNames ? 'Товар' : 'entity_id', 'period', $metricKey],
             rows: $rows,
         );
     }

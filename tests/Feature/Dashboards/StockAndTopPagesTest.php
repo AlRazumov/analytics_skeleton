@@ -305,7 +305,7 @@ it('does not grow the number of SQL queries with the number of rows', function (
         DB::listen(function () use (&$queries) {
             $queries++;
         });
-        foreach (['/dashboards/stock', '/dashboards/top-products'] as $path) {
+        foreach (['/dashboards/stock', '/dashboards/top-products', '/dashboards/overview'] as $path) {
             $this->get($path)->assertOk();
         }
 
@@ -317,43 +317,6 @@ it('does not grow the number of SQL queries with the number of rows', function (
 
     expect($many)->toBe($few)->and($calls)->toBeGreaterThan(0);
 });
-
-/** Адаптер, падающий на любом fetch*: веб-запросы страниц к источнику обращаться не должны. */
-function throwingAdapter(): DataSourceAdapter
-{
-    return new class implements DataSourceAdapter
-    {
-        public function fetchDeals(DateRange $period): iterable
-        {
-            throw new RuntimeException('adapter used: fetchDeals');
-        }
-
-        public function fetchProducts(): iterable
-        {
-            throw new RuntimeException('adapter used: fetchProducts');
-        }
-
-        public function fetchWarehouses(): iterable
-        {
-            throw new RuntimeException('adapter used: fetchWarehouses');
-        }
-
-        public function fetchStockMovements(DateRange $period): iterable
-        {
-            throw new RuntimeException('adapter used: fetchStockMovements');
-        }
-
-        public function fetchStock(?DateTimeImmutable $asOf = null): iterable
-        {
-            throw new RuntimeException('adapter used: fetchStock');
-        }
-
-        public function capabilities(): array
-        {
-            return [];
-        }
-    };
-}
 
 it('renders the pages with an adapter that throws on every fetch', function () {
     seedFromMock(1);

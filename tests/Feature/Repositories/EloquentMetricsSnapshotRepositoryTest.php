@@ -9,8 +9,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-it('picks the snapshot written last, not the one with the numerically largest period', function () {
-    // Снэпшот A: посчитан первым (дефолтный прогон), но у него больший period.
+it('picks the largest period_start, not the snapshot written last', function () {
+    // Снэпшот A: посчитан первым (дефолтный прогон), у него больший period_start.
     MetricsSnapshot::query()->create([
         'entity_type' => 'product',
         'entity_id' => 'p1',
@@ -24,7 +24,7 @@ it('picks the snapshot written last, not the one with the numerically largest pe
         'updated_at' => now()->subMinute(),
     ]);
 
-    // Снэпшот B: посчитан позже (бэкфилл старого окна), период меньше.
+    // Снэпшот B: посчитан позже (бэкфилл старого окна), период меньше — «последним» не становится.
     MetricsSnapshot::query()->create([
         'entity_type' => 'product',
         'entity_id' => 'p2',
@@ -40,7 +40,7 @@ it('picks the snapshot written last, not the one with the numerically largest pe
 
     $repository = new EloquentMetricsSnapshotRepository;
 
-    expect($repository->latestPeriodFor('product', 'abc_xyz_classification'))->toBe('month:2026-06');
+    expect($repository->latestPeriodFor('product', 'abc_xyz_classification'))->toBe('month:2026-09');
 });
 
 it('returns null when no snapshots exist', function () {
