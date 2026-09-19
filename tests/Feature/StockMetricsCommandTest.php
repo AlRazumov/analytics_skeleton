@@ -36,3 +36,21 @@ it('replaces only the recalculated months on a backfill of a narrower period', f
 
     expect(MetricsSnapshot::query()->where('metric_key', 'days_of_stock')->whereDate('period_start', '2026-06-01')->count())->toBe($before);
 });
+
+it('defaults the period to the 12 months ending at the mock history end, not at today', function () {
+    $this->artisan('metrics:calculate', ['--profile' => 'small'])
+        ->expectsOutputToContain('период=2025-09-01..2026-08-31')
+        ->assertExitCode(0);
+
+    $months = MetricsSnapshot::query()->where('metric_key', 'revenue')->distinct()->orderBy('period_start')->pluck('period_start')
+        ->map(fn ($d) => substr((string) $d, 0, 7))->all();
+
+    expect($months[0])->toBe('2025-09')
+        ->and(end($months))->toBe('2026-08');
+});
+
+it('keeps an explicit --period untouched by the mock-based default', function () {
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-05:2026-06'])
+        ->expectsOutputToContain('период=2026-05-01..2026-06-30')
+        ->assertExitCode(0);
+});

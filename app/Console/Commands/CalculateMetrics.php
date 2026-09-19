@@ -7,6 +7,7 @@ use App\Adapters\MockAdapter;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\MetricsCalculationService;
+use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsSnapshot;
@@ -44,14 +45,13 @@ class CalculateMetrics extends Command
     {
         try {
             $profile = $this->resolveProfile((string) $this->option('profile'));
-            $dateRange = $this->resolvePeriod($this->option('period'));
+            $adapter = new MockAdapter($profile);
+            $dateRange = $this->resolvePeriod($this->option('period'), $adapter);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
             return self::FAILURE;
         }
-
-        $adapter = new MockAdapter($profile);
 
         $this->info(sprintf(
             'Расчёт метрик: профиль=%s, период=%s..%s',
@@ -83,9 +83,22 @@ class CalculateMetrics extends Command
         return $profile;
     }
 
-    private function resolvePeriod(?string $value): DateRange
+    private function resolvePeriod(?string $value, DataSourceAdapter $adapter): DateRange
     {
         if ($value === null || $value === '') {
+            // Мок отдаёт данные только до historyEnd() (фиксирован ради
+            // детерминированности), поэтому по умолчанию берём 12 месяцев,
+            // заканчивающихся на нём, а не на «сегодня». Для других адаптеров —
+            // 12 месяцев, заканчивающихся текущим.
+            if ($adapter instanceof MockAdapter) {
+                $end = $adapter->historyEnd();
+
+                return new DateRange(
+                    (new DateTimeImmutable($end->format('Y-m-01')))->modify('-11 months'),
+                    $end,
+                );
+            }
+
             $now = new DateTimeImmutable('first day of this month');
 
             return new DateRange($now->modify('-11 months'), $now->modify('last day of this month'));
