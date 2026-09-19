@@ -15,6 +15,7 @@ use App\Core\Domain\Enums\StockMovementType;
 use App\Core\Domain\Product;
 use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
+use App\Core\Domain\Warehouse;
 use DateTimeImmutable;
 use Generator;
 use InvalidArgumentException;
@@ -116,6 +117,13 @@ final class MockAdapter implements DataSourceAdapter
             $doy[] = (int) $this->historyStart->modify("+{$d} days")->format('z') + 1;
         }
         $this->dayOfYear = $doy;
+    }
+
+    public function fetchWarehouses(): iterable
+    {
+        foreach ($this->warehouseIds as $id) {
+            yield new Warehouse(id: $id, name: 'Склад '.substr($id, strrpos($id, '-') + 1));
+        }
     }
 
     public function fetchProducts(): iterable

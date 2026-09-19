@@ -96,6 +96,11 @@ function fakeAdapter(array $deals = [], array $stockMovements = [], ?array $capa
             return [];
         }
 
+        public function fetchWarehouses(): iterable
+        {
+            return [];
+        }
+
         public function fetchStockMovements(DateRange $period): iterable
         {
             $this->fetchStockMovementsCalls++;
@@ -135,6 +140,11 @@ function stubStockAdapter(array $movements, array $opening = [], ?array $capabil
         }
 
         public function fetchProducts(): iterable
+        {
+            return [];
+        }
+
+        public function fetchWarehouses(): iterable
         {
             return [];
         }

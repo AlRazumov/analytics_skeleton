@@ -8,6 +8,7 @@ use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Domain\Product;
 use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
+use App\Core\Domain\Warehouse;
 use DateTimeImmutable;
 
 /**
@@ -28,6 +29,14 @@ interface DataSourceAdapter
      * @return iterable<Product>
      */
     public function fetchProducts(): iterable;
+
+    /**
+     * Справочник складов (id, название). Адаптер, не умеющий отдавать
+     * склады, возвращает пустой iterable — отдельной capability нет.
+     *
+     * @return iterable<Warehouse>
+     */
+    public function fetchWarehouses(): iterable;
 
     /**
      * Движения за диапазон; обе границы DateRange включительно по
