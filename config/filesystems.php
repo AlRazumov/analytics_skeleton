@@ -33,7 +33,9 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Диск local нигде не отдаётся по подписанным ссылкам (temporaryUrl не
+            // используется), поэтому встроенные роуты storage.local не нужны.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

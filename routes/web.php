@@ -5,9 +5,8 @@ use App\Http\Controllers\Dashboards\OverviewDashboardController;
 use App\Http\Controllers\DemoWidgetsController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Корень — просто вход в standalone-часть: гость попадёт на /login через auth.
+Route::redirect('/', '/dashboards/overview');
 
 // Standalone-часть (StandaloneLayout и демо виджетов на данных
 // metrics_snapshots) — только для вошедших пользователей. Будущая

@@ -17,11 +17,21 @@ it('redirects guests from every standalone route to /login', function (string $p
     $this->get($path)->assertRedirect('/login');
 })->with(STANDALONE_PATHS);
 
-it('keeps routes outside the standalone group public (health check and root)', function () {
+it('keeps the health check public (auth is not applied globally)', function () {
     // iframe-группы в проекте пока нет (IframeLayout отложен) — фиксируем, что
-    // middleware auth не повешен глобально и не-standalone роуты доступны как раньше.
+    // middleware auth не повешен глобально.
     $this->get('/up')->assertOk();
-    $this->get('/')->assertOk();
+});
+
+it('redirects / to the overview dashboard, and guests on to /login', function () {
+    $this->get('/')->assertRedirect('/dashboards/overview');
+
+    $this->followingRedirects()->get('/')->assertSee('Вход');
+});
+
+it('does not expose framework storage routes', function () {
+    $this->get('/storage/anything.txt')->assertNotFound();
+    $this->put('/storage/anything.txt')->assertNotFound();
 });
 
 it('shows the login page in the project layout without dashboard navigation', function () {
@@ -117,3 +127,23 @@ it('does not expose registration, password reset or email verification routes', 
     ['PUT', '/user/profile-information'],
     ['PUT', '/user/password'],
 ]);
+
+it('shows the failed-login message in Russian', function () {
+    makeUser();
+
+    $this->post('/login', ['email' => 'user@example.com', 'password' => 'wrong-password-123'])
+        ->assertSessionHasErrors(['email' => 'Неверный email или пароль.']);
+});
+
+it('has the throttle message in Russian', function () {
+    // Реальный 429 при переборе отдаёт middleware throttle:login (текст фреймворка
+    // «Too Many Attempts.», не переводится); auth.throttle используется Fortify
+    // LockoutResponse — проверяем сам перевод.
+    expect(app()->getLocale())->toBe('ru')
+        ->and(trans('auth.throttle', ['seconds' => 42]))->toBe('Слишком много попыток входа. Повторите через 42 сек.');
+});
+
+it('shows the required-field message in Russian', function () {
+    $this->post('/login', ['email' => '', 'password' => ''])
+        ->assertSessionHasErrors(['email' => 'Поле «Email» обязательно для заполнения.']);
+});

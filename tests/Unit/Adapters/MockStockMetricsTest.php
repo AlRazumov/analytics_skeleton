@@ -49,7 +49,7 @@ it('does not write dead stock rows for products without stock', function () {
     }
 });
 
-it('gives days_of_stock equal to the manifest days_to_zero for near-zero products', function (MockDataProfile $profile) {
+$gives_days_of_stock_equa = function (MockDataProfile $profile) {
     $adapter = new MockAdapter($profile, 1);
     $manifest = $adapter->manifest();
     $range = new DateRange(new DateTimeImmutable('2026-08-01'), new DateTimeImmutable($manifest->historyEnd));
@@ -66,7 +66,12 @@ it('gives days_of_stock equal to the manifest days_to_zero for near-zero product
             ->and($record->valueMeta['daily_rate'])->toEqualWithDelta($fact['daily_rate'], 1e-9)
             ->and($record->valueMeta['in_stock_days'])->toBe(28);
     }
-})->with([MockDataProfile::Small, MockDataProfile::Medium]);
+};
+
+it('gives days_of_stock equal to the manifest days_to_zero for near-zero products', $gives_days_of_stock_equa)->with([MockDataProfile::Small]);
+
+// Medium-профиль дорог (секунды) — группа slow, см. README.
+it('gives days_of_stock equal to the manifest days_to_zero for near-zero products (Medium)', $gives_days_of_stock_equa)->with([MockDataProfile::Medium])->group('slow');
 
 it('recovers the baseline sales rate of gap products exactly (zero-stock and arrival days excluded)', function () {
     $adapter = new MockAdapter(MockDataProfile::Small, 1);

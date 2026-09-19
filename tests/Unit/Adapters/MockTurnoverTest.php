@@ -91,7 +91,7 @@ function expectSameTurnover(array $actual, array $expected): void
     }
 }
 
-it('gives the same August turnover whether calculated for August only or for the whole year, equal to the fetchStock oracle', function (MockDataProfile $profile) {
+$gives_the_same_august_tu = function (MockDataProfile $profile) {
     $adapter = turnoverAdapter($profile);
 
     $oracle = turnoverOracle($adapter, '2026-08');
@@ -101,7 +101,12 @@ it('gives the same August turnover whether calculated for August only or for the
     expect($oracle)->not->toBeEmpty();
     expectSameTurnover($alone, $oracle);
     expectSameTurnover($year, $oracle);
-})->with([MockDataProfile::Small, MockDataProfile::Medium]);
+};
+
+it('gives the same August turnover whether calculated for August only or for the whole year, equal to the fetchStock oracle', $gives_the_same_august_tu)->with([MockDataProfile::Small]);
+
+// Medium-профиль дорог (секунды) — группа slow, см. README.
+it('gives the same August turnover whether calculated for August only or for the whole year, equal to the fetchStock oracle (Medium)', $gives_the_same_august_tu)->with([MockDataProfile::Medium])->group('slow');
 
 it('is correct on Medium with the default command period (12 of 24 history months) for sampled months', function () {
     $adapter = turnoverAdapter(MockDataProfile::Medium);
@@ -114,4 +119,4 @@ it('is correct on Medium with the default command period (12 of 24 history month
     foreach (['2025-09', '2026-01', '2026-08'] as $month) {
         expectSameTurnover(turnoverOfMonth($records, $month), turnoverOracle($adapter, $month));
     }
-});
+})->group('slow');

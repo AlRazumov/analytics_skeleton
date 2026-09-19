@@ -187,7 +187,7 @@ it('has balance equal to the sum of movements up to asOf (end of that day)', fun
     expect(array_diff_key($expected, $actual))->toBe([]);
 })->with([null, '2026-08-31', '2026-03-15', '2025-09-01', '2025-08-31', '2030-01-01']);
 
-it('never lets a stock balance go negative at any point in time', function (MockDataProfile $profile) {
+$never_lets_a_stock_balan = function (MockDataProfile $profile) {
     [$movements] = mockWorld($profile);
     usort($movements, fn ($x, $y) => $x->date <=> $y->date);
 
@@ -201,7 +201,12 @@ it('never lets a stock balance go negative at any point in time', function (Mock
 
     expect($movements)->not->toBeEmpty()
         ->and($lowest)->toBe(0.0);
-})->with([MockDataProfile::Small, MockDataProfile::Medium]);
+};
+
+it('never lets a stock balance go negative at any point in time', $never_lets_a_stock_balan)->with([MockDataProfile::Small]);
+
+// Medium-профиль дорог (секунды) — группа slow, см. README.
+it('never lets a stock balance go negative at any point in time (Medium)', $never_lets_a_stock_balan)->with([MockDataProfile::Medium])->group('slow');
 
 it('emits transfers as paired transfer_out/transfer_in of equal quantity', function () {
     [$movements] = mockWorld(MockDataProfile::Medium);
