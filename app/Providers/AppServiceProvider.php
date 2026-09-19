@@ -3,10 +3,10 @@
 namespace App\Providers;
 
 use App\Adapters\AdapterProductNameResolver;
-use App\Adapters\Mock\MockDataProfile;
-use App\Adapters\MockAdapter;
+use App\Adapters\DataSourceAdapterFactory;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
+use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
@@ -27,13 +27,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(MetricsSnapshotWriter::class, EloquentMetricsSnapshotWriter::class);
         $this->app->bind(MetricsComparisonRepository::class, EloquentMetricsComparisonRepository::class);
 
-        // Названия товаров берутся из адаптера. Единственная реализация —
-        // MockAdapter, инстанцируется напрямую (как в metrics:calculate, чей
-        // профиль по умолчанию — medium; каталог small — его подмножество).
-        // При появлении реальных адаптеров здесь — выбор адаптера инсталляции.
-        $this->app->bind(ProductNameResolver::class, fn () => new AdapterProductNameResolver(
-            new MockAdapter(MockDataProfile::Medium),
-        ));
+        // Источник данных выбирается конфигом (analytics.source).
+        $this->app->bind(DataSourceAdapter::class, fn ($app) => $app->make(DataSourceAdapterFactory::class)->make());
+
+        // Временно (до части B): названия — из адаптера контейнера.
+        $this->app->bind(ProductNameResolver::class, fn ($app) => new AdapterProductNameResolver($app->make(DataSourceAdapter::class)));
 
         // Пороги метрик остатков живут в config/analytics.php, а core
         // о Laravel-конфиге не знает — передаём значения конструктором.

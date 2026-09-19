@@ -4,6 +4,14 @@
 $deadStockDays = 90;
 
 return [
+    // Источник данных: в этапе 12 добавятся реальные адаптеры; пока только 'mock'.
+    'source' => env('ANALYTICS_SOURCE', 'mock'),
+
+    'mock' => [
+        'profile' => env('ANALYTICS_MOCK_PROFILE', 'medium'),
+        'seed' => (int) env('ANALYTICS_MOCK_SEED', 42),
+    ],
+
     'stock' => [
         // Неликвид: порог в днях без продаж (отбор — запросом value >= порога).
         'dead_stock_days' => $deadStockDays,

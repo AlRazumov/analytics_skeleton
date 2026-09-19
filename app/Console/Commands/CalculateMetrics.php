@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Adapters\DataSourceAdapterFactory;
 use App\Adapters\Mock\MockDataProfile;
 use App\Adapters\MockAdapter;
 use App\Core\Analytics\DaysOfStockCalculator;
@@ -16,19 +17,15 @@ use Illuminate\Console\Command;
 use InvalidArgumentException;
 
 /**
- * Прогоняет расчётный пайплайн (core/Analytics) по MockAdapter и пишет
- * результат в metrics_snapshots через MetricsSnapshotWriter.
- *
- * MockAdapter инстанцируется здесь напрямую (не через контейнер) —
- * осознанное решение, единственная текущая реализация DataSourceAdapter,
- * реального источника (Bitrix24/1С) ещё нет. Расчётная логика
- * (MetricsCalculationService) ничего об этом не знает и принимает
- * только контракт DataSourceAdapter — при появлении второго адаптера
- * или при переносе в Job меняется только эта команда.
+ * Прогоняет расчётный пайплайн (core/Analytics) по адаптеру источника
+ * (analytics.source, контейнер) и пишет результат в metrics_snapshots
+ * через MetricsSnapshotWriter. Расчётная логика принимает только контракт
+ * DataSourceAdapter. --profile — переопределение профиля мока, допустимо
+ * только при source=mock.
  */
 class CalculateMetrics extends Command
 {
-    protected $signature = 'metrics:calculate {--profile=medium} {--period=}';
+    protected $signature = 'metrics:calculate {--profile= : Профиль мока (только при analytics.source=mock)} {--period=}';
 
     protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover) из DataSourceAdapter в metrics_snapshots';
 
@@ -41,11 +38,17 @@ class CalculateMetrics extends Command
         [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
     ];
 
-    public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer): int
+    public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer, DataSourceAdapterFactory $factory): int
     {
         try {
-            $profile = $this->resolveProfile((string) $this->option('profile'));
-            $adapter = new MockAdapter($profile);
+            $profileOption = (string) $this->option('profile');
+            if ($profileOption !== '' && $factory->source() !== 'mock') {
+                throw new InvalidArgumentException("--profile допустим только при analytics.source=mock (сейчас '{$factory->source()}').");
+            }
+
+            $adapter = $profileOption !== ''
+                ? $factory->make($this->resolveProfile($profileOption))
+                : app(DataSourceAdapter::class);
             $dateRange = $this->resolvePeriod($this->option('period'), $adapter);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
@@ -54,8 +57,8 @@ class CalculateMetrics extends Command
         }
 
         $this->info(sprintf(
-            'Расчёт метрик: профиль=%s, период=%s..%s',
-            $profile->value,
+            'Расчёт метрик: источник=%s, период=%s..%s',
+            $factory->source().($profileOption !== '' ? "/{$profileOption}" : ''),
             $dateRange->start->format('Y-m-d'),
             $dateRange->end->format('Y-m-d'),
         ));
