@@ -16,7 +16,7 @@
 | 05 | Presentation (StandaloneLayout) | stages/stage-05-presentation.md | done (IframeLayout вынесен на будущий этап — ждёт доступа к Б24-порталу) | 03 |
 | 06 | Контракты движений/остатков, Period, metrics_snapshots, MockAdapter (часть 1) | stages/stage-06-contracts-and-mock.md | done (часть 1; см. reports/stage6-part1.md) | 01, 02, 04 |
 | 07 | Метрики остатков: неликвиды (days_since_last_sale), дни до обнуления (days_of_stock) | stages/stage-07-stock-metrics.md | done | 06 |
-| 08 | Правки метрик остатков, сравнение периодов, топ/анти-топ | stages/stage-08-period-comparison-top.md | in progress | 06, 07 |
+| 08 | Правки метрик остатков, сравнение периодов, топ/анти-топ | stages/stage-08-period-comparison-top.md | done (см. reports/stage-08-period-comparison.md) | 06, 07 |
 | 09 | Bitrix24Adapter | — | not planned (отложен на неопределённый срок, ждёт клиента) | 06 |
 | 10 | OneCAdapter | — | not planned (отложен на неопределённый срок; заказчик тянет время, может не состояться) | 06 |
 
@@ -99,7 +99,7 @@
 ## Статус проекта (обновлено 2026-09-19)
 
 Этапы 00–05 полностью завершены и приняты; этап 06 (контракты и
-MockAdapter, часть 1) выполнен 2026-09-19; этап 07 (метрики остатков) — тоже; этап 08 (сравнение периодов, топ/анти-топ) в работе. Этапы 09
+MockAdapter, часть 1) выполнен 2026-09-19; этап 07 (метрики остатков) — тоже; этап 08 (правки метрик остатков, сравнение периодов, топ/анти-топ) — тоже. Этапы 09
 (`Bitrix24Adapter`) и 10 (`OneCAdapter`) — not planned, ждут появления
 реального клиента. Known issues (см. выше) закрыты, технического
 долга не осталось. Проект поставлен на паузу до появления реального
