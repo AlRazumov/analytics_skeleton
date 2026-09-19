@@ -368,3 +368,31 @@ it('gives every movement a unique id', function () {
 
     expect(count(array_unique(array_map(fn ($m) => $m->id, $movements))))->toBe(count($movements));
 });
+
+it('sells about multiplier × baseline on EVERY day of the spike window, not only at its edges (scenario 5)', function () {
+    [$movements, $adapter] = mockWorld();
+
+    foreach ($adapter->manifest()->spikeProducts as $productId => $fact) {
+        $dailySales = [];
+        foreach ($movements as $m) {
+            if ($m->productId === $productId && $m->type === StockMovementType::Sale) {
+                $day = $m->date->format('Y-m-d');
+                $dailySales[$day] = ($dailySales[$day] ?? 0.0) - $m->quantity;
+            }
+        }
+
+        $window = [];
+        for ($day = new DateTimeImmutable($fact['from']); $day <= new DateTimeImmutable($fact['to']); $day = $day->modify('+1 day')) {
+            $window[] = $dailySales[$day->format('Y-m-d')] ?? 0.0;
+        }
+        $outside = array_diff_key($dailySales, array_flip(array_map(fn ($i) => (new DateTimeImmutable($fact['from']))->modify("+$i days")->format('Y-m-d'), array_keys($window))));
+
+        $expected = $fact['baseline_daily'] * $fact['multiplier'];
+        foreach ($window as $sold) {
+            expect($sold)->toBeGreaterThanOrEqual($expected * 0.9)->toBeLessThanOrEqual($expected * 1.1);
+        }
+        expect(array_sum($window) / count($window))->toBeGreaterThan(0.9 * $expected)
+            ->and(max($outside))->toBeLessThanOrEqual($fact['baseline_daily'] * 1.1)
+            ->and(array_sum($window) / count($window))->toBeGreaterThan(5 * (array_sum($outside) / count($outside)));
+    }
+});
