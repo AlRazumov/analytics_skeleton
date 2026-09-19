@@ -27,7 +27,7 @@ resources/views/components/layouts/ — Blade-layout'ы presentation-слоя
 `presentation/` — так сложилось на этапах 03/05 (см. `docs/reports/
 stage-03-report.md`). Выделение отдельных namespace'ов — решение,
 которое имеет смысл принимать только когда появятся реальные адаптеры
-(Bitrix24Adapter/OneCAdapter, этапы 10/11 roadmap) и будет видно, нужна ли такая
+(Bitrix24Adapter/OneCAdapter, этапы 11/12 roadmap) и будет видно, нужна ли такая
 изоляция.
 
 Ключевой принцип: `core` определяет контракт `DataSourceAdapter`,
