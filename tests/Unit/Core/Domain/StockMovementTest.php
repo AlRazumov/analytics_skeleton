@@ -3,115 +3,54 @@
 use App\Core\Domain\Enums\StockMovementType;
 use App\Core\Domain\StockMovement;
 
+function movement(StockMovementType $type, float $quantity): StockMovement
+{
+    return new StockMovement('m1', 'p1', 'w1', $quantity, $type, new DateTimeImmutable('2026-01-01'));
+}
+
 it('constructs with given values', function () {
     $date = new DateTimeImmutable('2026-01-01');
-    $movement = new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 5.0,
-        type: StockMovementType::In,
-        date: $date,
-        meta: ['note' => 'test'],
-    );
+    $movement = new StockMovement('m1', 'p1', 'w1', 5.0, StockMovementType::Receipt, $date, ['note' => 'test']);
 
     expect($movement->id)->toBe('m1')
         ->and($movement->productId)->toBe('p1')
         ->and($movement->warehouseId)->toBe('w1')
         ->and($movement->quantity)->toBe(5.0)
-        ->and($movement->type)->toBe(StockMovementType::In)
+        ->and($movement->type)->toBe(StockMovementType::Receipt)
         ->and($movement->date)->toBe($date)
-        ->and($movement->toWarehouseId)->toBeNull()
         ->and($movement->meta)->toBe(['note' => 'test']);
 });
 
 it('defaults meta to empty array', function () {
-    $movement = new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::Out,
-        date: new DateTimeImmutable,
-    );
-
-    expect($movement->meta)->toBe([]);
+    expect(movement(StockMovementType::Sale, -1.0)->meta)->toBe([]);
 });
 
 it('is immutable', function () {
-    $movement = new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::Transfer,
-        date: new DateTimeImmutable,
-        toWarehouseId: 'w2',
-    );
-
-    expect(fn () => $movement->quantity = 2.0)->toThrow(Error::class);
+    expect(fn () => movement(StockMovementType::Sale, -1.0)->quantity = 2.0)->toThrow(Error::class);
 });
 
-it('allows In without toWarehouseId', function () {
-    $movement = new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::In,
-        date: new DateTimeImmutable,
-    );
+it('accepts a quantity sign consistent with the type', function (StockMovementType $type, float $quantity) {
+    expect(movement($type, $quantity)->quantity)->toBe($quantity);
+})->with([
+    [StockMovementType::Receipt, 3.0],
+    [StockMovementType::TransferIn, 3.0],
+    [StockMovementType::Sale, -3.0],
+    [StockMovementType::TransferOut, -3.0],
+    [StockMovementType::Writeoff, -3.0],
+    [StockMovementType::Adjustment, 3.0],
+    [StockMovementType::Adjustment, -3.0],
+]);
 
-    expect($movement->toWarehouseId)->toBeNull();
-});
+it('rejects a quantity sign inconsistent with the type', function (StockMovementType $type, float $quantity) {
+    movement($type, $quantity);
+})->with([
+    [StockMovementType::Receipt, -3.0],
+    [StockMovementType::TransferIn, -3.0],
+    [StockMovementType::Sale, 3.0],
+    [StockMovementType::TransferOut, 3.0],
+    [StockMovementType::Writeoff, 3.0],
+])->throws(InvalidArgumentException::class);
 
-it('allows Out without toWarehouseId', function () {
-    $movement = new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::Out,
-        date: new DateTimeImmutable,
-    );
-
-    expect($movement->toWarehouseId)->toBeNull();
-});
-
-it('throws when Transfer is created without toWarehouseId', function () {
-    expect(fn () => new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::Transfer,
-        date: new DateTimeImmutable,
-    ))->toThrow(InvalidArgumentException::class);
-});
-
-it('throws when In/Out is created with toWarehouseId', function () {
-    expect(fn () => new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::In,
-        date: new DateTimeImmutable,
-        toWarehouseId: 'w2',
-    ))->toThrow(InvalidArgumentException::class);
-});
-
-it('allows Transfer with toWarehouseId', function () {
-    $movement = new StockMovement(
-        id: 'm1',
-        productId: 'p1',
-        warehouseId: 'w1',
-        quantity: 1.0,
-        type: StockMovementType::Transfer,
-        date: new DateTimeImmutable,
-        toWarehouseId: 'w2',
-    );
-
-    expect($movement->warehouseId)->toBe('w1')
-        ->and($movement->toWarehouseId)->toBe('w2');
-});
+it('rejects zero quantity', function () {
+    movement(StockMovementType::Adjustment, 0.0);
+})->throws(InvalidArgumentException::class);

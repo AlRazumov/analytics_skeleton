@@ -83,3 +83,16 @@ it('throws when ABC and XYZ records for the same entityId disagree on period', f
     expect(fn () => $merge->invoke($service, $abcRecords, $xyzRecords))
         ->toThrow(RuntimeException::class, "entityId='prod-1'");
 });
+
+it('skips stock movements and turnover when the adapter does not report the StockMovements capability', function () {
+    $deals = [new Deal('d-1', 'prod-1', 100.0, new DateTimeImmutable('2026-01-05'))];
+    $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
+
+    $adapter = fakeAdapter($deals, capabilities: []);
+
+    $records = (new MetricsCalculationService)->calculate($adapter, $period);
+
+    expect($adapter->fetchStockMovementsCalls)->toBe(0)
+        ->and(collect($records)->where('metricKey', 'turnover'))->toHaveCount(0)
+        ->and(collect($records)->where('metricKey', 'revenue'))->toHaveCount(1);
+});

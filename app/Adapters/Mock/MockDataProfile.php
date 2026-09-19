@@ -39,14 +39,14 @@ enum MockDataProfile: string
     }
 
     /**
-     * Количество складов растёт с профилем, чтобы Transfer-движения
-     * (перемещение между складами) имели смысл на Medium/Large — на
-     * Small один склад, перемещать нечего. Значение ориентировочное.
+     * Количество складов растёт с профилем; минимум два, чтобы
+     * перемещения между складами присутствовали в любом профиле.
+     * Значение ориентировочное.
      */
     public function warehouseCount(): int
     {
         return match ($this) {
-            self::Small => 1,
+            self::Small => 2,
             self::Medium => 3,
             self::Large => 5,
         };
@@ -61,5 +61,23 @@ enum MockDataProfile: string
             static fn (int $i): string => "wh-{$i}",
             range(1, $this->warehouseCount()),
         );
+    }
+
+    /** Глубина истории движений в днях (до конца окна истории). Ориентировочно. */
+    public function historyDays(): int
+    {
+        return match ($this) {
+            self::Small => 365,
+            self::Medium, self::Large => 730,
+        };
+    }
+
+    public function scenarios(): MockScenarioConfig
+    {
+        return match ($this) {
+            self::Small => new MockScenarioConfig(2, 2, 2, 2, 4),
+            self::Medium => new MockScenarioConfig(5, 5, 5, 5, 25),
+            self::Large => new MockScenarioConfig(10, 10, 10, 10, 100),
+        };
     }
 }

@@ -4,7 +4,10 @@ namespace App\Core\Domain\Enums;
 
 enum StockMovementType: string
 {
-    case In = 'in';
-    case Out = 'out';
-    case Transfer = 'transfer';
+    case Receipt = 'receipt';
+    case Sale = 'sale';
+    case TransferIn = 'transfer_in';
+    case TransferOut = 'transfer_out';
+    case Writeoff = 'writeoff';
+    case Adjustment = 'adjustment';
 }

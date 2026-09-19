@@ -14,17 +14,18 @@ use DateTimeImmutable;
  *
  * ДОПУЩЕНИЕ (методология не следует однозначно из имеющегося кода —
  * зафиксировано в отчёте stage-04): DataSourceAdapter не предоставляет
- * абсолютный остаток на складе (нет fetch-метода "текущий остаток"),
- * только поток движений fetchStockMovements(). Поэтому "остаток" здесь
- * — накопленный сальдо движений (In - Out, Transfer между складами
- * товара не меняет сальдо на уровне товара в целом), начиная с 0 в
+ * абсолютный остаток на складе (fetchStock() появился позже, расчёт на
+ * него пока не переведён), только поток движений fetchStockMovements().
+ * Поэтому "остаток" здесь
+ * — накопленный сальдо движений (сумма движений со знаком; пары
+ * transfer_in/transfer_out не меняют сальдо товара в целом), начиная с 0 в
  * начале запрошенного периода. Это ОТНОСИТЕЛЬНЫЙ остаток внутри окна
  * расчёта, а не абсолютный физический остаток на конец месяца — при
  * отсутствии ненулевого остатка на начало периода в реальном источнике
  * данных все месяцы, кроме первых, будут занижать реальную
  * оборачиваемость. Способ расчёта: для каждого месяца period
  * берётся average(opening, closing) как средний остаток; продажи месяца
- * = сумма quantity движений типа Out; turnover = unitsSold / avgStock
+ * = сумма −quantity движений типа Sale; turnover = unitsSold / avgStock
  * (в разах за месяц). Если avgStock == 0, turnover не определён — в
  * таком случае снэпшот не пишется (нет базы для деления, а не
  * "оборачиваемость 0").
@@ -46,8 +47,8 @@ final class TurnoverCalculator
             return [];
         }
 
-        // Сумма ± движения по товару за каждый месяц (In: +, Out: -;
-        // Transfer не меняет сальдо товара в целом — перемещение между
+        // Сумма ± движения по товару за каждый месяц (quantity со знаком;
+        // transfer_in/out не меняют сальдо товара в целом — перемещение между
         // своими же складами).
         $netByProductAndMonth = [];
         $outByProductAndMonth = [];
@@ -56,15 +57,14 @@ final class TurnoverCalculator
             $month = $movement->date->format('Y-m');
 
             $delta = match ($movement->type) {
-                StockMovementType::In => $movement->quantity,
-                StockMovementType::Out => -$movement->quantity,
-                StockMovementType::Transfer => 0.0,
+                StockMovementType::TransferIn, StockMovementType::TransferOut => 0.0,
+                default => $movement->quantity,
             };
 
             $netByProductAndMonth[$movement->productId][$month] = ($netByProductAndMonth[$movement->productId][$month] ?? 0.0) + $delta;
 
-            if ($movement->type === StockMovementType::Out) {
-                $outByProductAndMonth[$movement->productId][$month] = ($outByProductAndMonth[$movement->productId][$month] ?? 0.0) + $movement->quantity;
+            if ($movement->type === StockMovementType::Sale) {
+                $outByProductAndMonth[$movement->productId][$month] = ($outByProductAndMonth[$movement->productId][$month] ?? 0.0) - $movement->quantity;
             }
         }
 

@@ -4,8 +4,11 @@ namespace App\Core\Contracts;
 
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
+use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Domain\Product;
+use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
+use DateTimeImmutable;
 
 /**
  * Потоковый контракт источника данных.
@@ -27,7 +30,28 @@ interface DataSourceAdapter
     public function fetchProducts(): iterable;
 
     /**
+     * Движения за диапазон; обе границы DateRange включительно по
+     * дате. Порядок записей не гарантируется. Вызывать только если
+     * capabilities() содержит AdapterCapability::StockMovements.
+     *
      * @return iterable<StockMovement>
      */
     public function fetchStockMovements(DateRange $period): iterable;
+
+    /**
+     * Остатки на КОНЕЦ дня $asOf (время игнорируется); null — текущие.
+     * Вызывать только если capabilities() содержит
+     * AdapterCapability::StockSnapshots.
+     *
+     * @return iterable<StockBalance>
+     */
+    public function fetchStock(?DateTimeImmutable $asOf = null): iterable;
+
+    /**
+     * Что источник умеет отдавать. Метрика, которой нужна история
+     * движений или остатки, сверяется с этим списком вместо падения.
+     *
+     * @return list<AdapterCapability>
+     */
+    public function capabilities(): array;
 }

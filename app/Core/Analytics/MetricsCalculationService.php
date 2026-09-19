@@ -4,6 +4,7 @@ namespace App\Core\Analytics;
 
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use RuntimeException;
 
@@ -56,7 +57,11 @@ final class MetricsCalculationService
         // материализуем в массив сразу после единственного вызова.
         $rawDeals = $adapter->fetchDeals($period);
         $deals = is_array($rawDeals) ? $rawDeals : iterator_to_array($rawDeals);
-        $stockMovements = $adapter->fetchStockMovements($period);
+        // Источник без истории движений не ломает прогон: оборачиваемость
+        // просто не считается (нет данных — нет метрики).
+        $stockMovements = in_array(AdapterCapability::StockMovements, $adapter->capabilities(), true)
+            ? $adapter->fetchStockMovements($period)
+            : [];
 
         $records = [
             ...$this->revenue->calculate($deals, $period),

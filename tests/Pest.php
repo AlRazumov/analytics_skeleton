@@ -2,6 +2,7 @@
 
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Enums\AdapterCapability;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -64,9 +65,9 @@ function something()
  * docs/reports/stage-04-report.md, раздел "Наблюдение: контракт «один
  * вызов fetch* за прогон» не соблюдается буквально").
  */
-function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceAdapter
+function fakeAdapter(array $deals = [], array $stockMovements = [], ?array $capabilities = null): DataSourceAdapter
 {
-    return new class($deals, $stockMovements) implements DataSourceAdapter
+    return new class($deals, $stockMovements, $capabilities ?? [AdapterCapability::StockMovements, AdapterCapability::StockSnapshots]) implements DataSourceAdapter
     {
         public int $fetchDealsCalls = 0;
 
@@ -75,6 +76,7 @@ function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceA
         public function __construct(
             private array $deals,
             private array $stockMovements,
+            private array $capabilities,
         ) {}
 
         public function fetchDeals(DateRange $period): iterable
@@ -94,6 +96,16 @@ function fakeAdapter(array $deals = [], array $stockMovements = []): DataSourceA
             $this->fetchStockMovementsCalls++;
 
             return $this->stockMovements;
+        }
+
+        public function fetchStock(?DateTimeImmutable $asOf = null): iterable
+        {
+            return [];
+        }
+
+        public function capabilities(): array
+        {
+            return $this->capabilities;
         }
     };
 }

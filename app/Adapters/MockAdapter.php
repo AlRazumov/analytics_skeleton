@@ -3,17 +3,21 @@
 namespace App\Adapters;
 
 use App\Adapters\Mock\MockDataProfile;
+use App\Adapters\Mock\MockScenarioConfig;
+use App\Adapters\Mock\MockScenarioManifest;
 use App\Adapters\Mock\NewYearSeasonalPattern;
 use App\Adapters\Mock\SeasonalPattern;
-use App\Adapters\Mock\SingleSpikeAnomaly;
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
+use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Domain\Enums\StockMovementType;
 use App\Core\Domain\Product;
+use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
 use DateTimeImmutable;
 use Generator;
+use InvalidArgumentException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
@@ -31,6 +35,12 @@ use Random\Randomizer;
  * порядок/состав предыдущих вызовов не влияет на результат следующего,
  * как того требует докблок DataSourceAdapter.
  *
+ * Движения и остатки — срез одной детерминированной истории (окно
+ * historyDays до historyEnd; см. manifest() для эталонных сценариев),
+ * поэтому fetchStock() и fetchStockMovements() согласованы, а остаток
+ * ни на одном складе не бывает отрицательным. Полный прогон Large-
+ * профиля по всей истории — миллионы записей и десятки секунд.
+ *
  * Одинаковые $profile + $seed + аргументы метода → идентичный
  * результат между прогонами (используется Random\Engine\Mt19937 с
  * явным сидом, не глобальный rand()/mt_rand()).
@@ -39,35 +49,73 @@ final class MockAdapter implements DataSourceAdapter
 {
     private const CATEGORIES = ['electronics', 'apparel', 'home', 'food', 'toys'];
 
-    /**
-     * Заготовка дисбаланс-сценария (см. fetchStockMovements): товар и
-     * пара складов из этого сценария зафиксированы явно (не зависят от
-     * $seed), чтобы сценарий было легко найти и проверить в тестах.
-     */
-    private const IMBALANCE_PRODUCT_ID = 'prod-1';
+    /** Конец окна истории движений по умолчанию (фиксирован ради детерминированности). */
+    private const HISTORY_END = '2026-08-31';
 
-    // Значения намеренно на порядок больше типичного фонового
-    // движения по товару за месяц, чтобы сигнал был безусловно
-    // различим на фоне случайных движений того же товара, попавших в
-    // те же склады. Величины ОРИЕНТИРОВОЧНЫЕ.
-    private const IMBALANCE_OVERSTOCK_QTY = 5000.0;
+    private const GAP_LENGTH = 21;
 
-    private const IMBALANCE_UNDERSTOCK_QTY = 4800.0;
+    private const GAP_RATE = 3;
 
-    /** Доля движений склада, генерируемая как Transfer. Ориентировочно. */
-    private const TRANSFER_SHARE = 0.05;
+    private const SPIKE_BASE_RATE = 5;
+
+    private const SPIKE_MULTIPLIER = 8;
+
+    private const SPIKE_DAYS = 3;
 
     /** @var list<SeasonalPattern> */
     private readonly array $seasonalPatterns;
 
+    private readonly DateTimeImmutable $historyStart;
+
+    private readonly int $historyDays;
+
+    /** @var list<string> */
+    private readonly array $warehouseIds;
+
+    private readonly MockScenarioConfig $scenarios;
+
+    /** @var array<string, array{int, int}> kind => [первый индекс товара, последний] */
+    private readonly array $kindRanges;
+
+    /** @var list<int> день года (1..366) для каждого дня окна истории */
+    private readonly array $dayOfYear;
+
     public function __construct(
         private readonly MockDataProfile $profile = MockDataProfile::Medium,
         private readonly int $seed = 42,
+        ?MockScenarioConfig $scenarios = null,
+        ?DateTimeImmutable $historyEnd = null,
     ) {
         // Список из одного паттерна на сейчас — расширяемо: второй
         // сезонный паттерн добавляется сюда без переписывания
-        // generate*-логики (см. докблок SeasonalPattern).
+        // generate*-логики (см. докблок SeasonalPattern). Паттерны
+        // применяются к сделкам; сезонность остатков — в movementsFor.
         $this->seasonalPatterns = [new NewYearSeasonalPattern];
+
+        $this->scenarios = $scenarios ?? $profile->scenarios();
+        $this->historyDays = $profile->historyDays();
+        $this->warehouseIds = $profile->warehouseIds();
+        $end = new DateTimeImmutable(($historyEnd ?? new DateTimeImmutable(self::HISTORY_END))->format('Y-m-d'));
+        $this->historyStart = $end->modify('-'.($this->historyDays - 1).' days');
+
+        $next = 1;
+        $ranges = [];
+        foreach (['dead' => $this->scenarios->deadCount, 'near_zero' => $this->scenarios->nearZeroCount,
+            'gaps' => $this->scenarios->gapCount, 'spike' => $this->scenarios->spikeCount,
+            'seasonal' => $this->scenarios->seasonalCount] as $kind => $count) {
+            $ranges[$kind] = [$next, $next + $count - 1];
+            $next += $count;
+        }
+        if ($next - 1 > $profile->productCount()) {
+            throw new InvalidArgumentException('Сценарные товары не помещаются в профиль.');
+        }
+        $this->kindRanges = $ranges;
+
+        $doy = [];
+        for ($d = 0; $d < $this->historyDays; $d++) {
+            $doy[] = (int) $this->historyStart->modify("+{$d} days")->format('z') + 1;
+        }
+        $this->dayOfYear = $doy;
     }
 
     public function fetchProducts(): iterable
@@ -113,162 +161,372 @@ final class MockAdapter implements DataSourceAdapter
         }
     }
 
+    /**
+     * Границы DateRange включительно по дате. Порядок: по товарам, внутри
+     * товара по времени. Движения не зависят от запрошенного диапазона —
+     * это срез одной и той же детерминированной истории
+     * (см. historyStart()/historyEnd()); вне окна истории данных нет.
+     */
     public function fetchStockMovements(DateRange $period): iterable
     {
-        $randomizer = $this->randomizerFor('stock');
-        $productCount = $this->profile->productCount();
-        $warehouseIds = $this->profile->warehouseIds();
-        $warehouseCount = count($warehouseIds);
-        $counter = 0;
+        $fromDay = max(0, $this->dayIndex($period->start));
+        $toDay = min($this->historyDays - 1, $this->dayIndex($period->end));
 
-        // Аномалия: товар выбирается детерминированно по $seed один раз
-        // за вызов (не зависит от того, сколько элементов уже прочитано
-        // из потока), затрагивает первый месяц запрошенного периода.
-        $anomalyProductIndex = $randomizer->getInt(1, $productCount);
-        $firstMonth = new DateTimeImmutable($period->start->format('Y-m-01'));
-        $anomaly = new SingleSpikeAnomaly(
-            productId: "prod-{$anomalyProductIndex}",
-            year: (int) $firstMonth->format('Y'),
-            month: (int) $firstMonth->format('n'),
-        );
-
-        $isFirstMonth = true;
-
-        foreach ($this->monthsIn($period) as [$monthStart, $rangeStart, $rangeEnd, $proportion]) {
-            $seasonalMultiplier = $this->seasonalMultiplier((int) $monthStart->format('n'));
-
-            if ($isFirstMonth) {
-                yield from $this->imbalanceScenario($warehouseIds, $rangeStart, $counter);
-            }
-            $isFirstMonth = false;
-
-            foreach ($warehouseIds as $warehouseId) {
-                // Объём движений по складу условно завязан на
-                // dealsPerMonth профиля, поделённый на число складов —
-                // ориентировочная пропорция, не откалиброванная под
-                // реальный товарооборот (см. докблок MockDataProfile).
-                $baseCount = (int) round(
-                    ($this->profile->dealsPerMonth() / $warehouseCount) * $proportion * $seasonalMultiplier
-                );
-
-                for ($i = 0; $i < $baseCount; $i++) {
-                    $counter++;
-                    $productIndex = $randomizer->getInt(1, $productCount);
-                    $productId = "prod-{$productIndex}";
-                    $date = $this->randomDateBetween($randomizer, $rangeStart, $rangeEnd);
-                    $type = $randomizer->getInt(1, 100) <= 55
-                        ? StockMovementType::Out
-                        : StockMovementType::In;
-                    $quantity = $randomizer->getInt(1, 50);
-
-                    if ($type === StockMovementType::Out) {
-                        $spike = $anomaly->multiplierFor($productId, $date);
-                        if ($spike !== null) {
-                            $quantity = (int) round($quantity * $spike);
-                        }
-                    }
-
-                    yield new StockMovement(
-                        id: "stock-{$counter}",
-                        productId: $productId,
-                        warehouseId: $warehouseId,
-                        quantity: (float) $quantity,
-                        type: $type,
-                        date: $date,
-                    );
-                }
-
-                if ($warehouseCount > 1) {
-                    yield from $this->transfers(
-                        $randomizer,
-                        $warehouseId,
-                        $warehouseIds,
-                        $productCount,
-                        $rangeStart,
-                        $rangeEnd,
-                        (int) round($baseCount * self::TRANSFER_SHARE),
-                        $counter,
-                    );
-                }
-            }
-        }
-    }
-
-    /**
-     * Заготовка дисбаланс-сценария межфилиального перемещения (только
-     * Large-профиль, только первый месяц запрошенного периода): склад
-     * warehouseIds[0] явно затоварен, warehouseIds[1] явно в дефиците
-     * по одному и тому же товару. Товар/пара складов зафиксированы
-     * явно (не зависят от $seed), чтобы сценарий был легко находим в
-     * тестах. Количества ОРИЕНТИРОВОЧНЫЕ — важна структура сигнала
-     * (резкий разнонаправленный дисбаланс между двумя складами по
-     * одному товару в одном периоде), а не точная величина.
-     *
-     * @param  list<string>  $warehouseIds
-     * @return Generator<StockMovement>
-     */
-    private function imbalanceScenario(array $warehouseIds, DateTimeImmutable $date, int &$counter): Generator
-    {
-        if ($this->profile !== MockDataProfile::Large || count($warehouseIds) < 2) {
+        if ($fromDay > $toDay) {
             return;
         }
 
-        $counter++;
-        yield new StockMovement(
-            id: "stock-imbalance-in-{$counter}",
-            productId: self::IMBALANCE_PRODUCT_ID,
-            warehouseId: $warehouseIds[0],
-            quantity: self::IMBALANCE_OVERSTOCK_QTY,
-            type: StockMovementType::In,
-            date: $date,
-        );
+        for ($i = 1; $i <= $this->profile->productCount(); $i++) {
+            yield from $this->movementsFor($i, $fromDay, $toDay);
+        }
+    }
 
-        $counter++;
-        yield new StockMovement(
-            id: "stock-imbalance-out-{$counter}",
-            productId: self::IMBALANCE_PRODUCT_ID,
-            warehouseId: $warehouseIds[1],
-            quantity: self::IMBALANCE_UNDERSTOCK_QTY,
-            type: StockMovementType::Out,
-            date: $date,
+    /**
+     * Остатки на конец дня $asOf (null — конец окна истории) для КАЖДОЙ
+     * пары товар×склад (в т.ч. нулевые). Считаются суммой движений, то
+     * есть строго согласованы с fetchStockMovements().
+     */
+    public function fetchStock(?DateTimeImmutable $asOf = null): iterable
+    {
+        $toDay = $asOf === null
+            ? $this->historyDays - 1
+            : min($this->historyDays - 1, $this->dayIndex($asOf));
+        for ($i = 1; $i <= $this->profile->productCount(); $i++) {
+            $quantities = array_fill_keys($this->warehouseIds, 0.0);
+
+            if ($toDay >= 0) {
+                foreach ($this->movementsFor($i, 0, $toDay) as $movement) {
+                    $quantities[$movement->warehouseId] += $movement->quantity;
+                }
+            }
+
+            foreach ($quantities as $warehouseId => $quantity) {
+                yield new StockBalance("prod-{$i}", $warehouseId, $quantity);
+            }
+        }
+    }
+
+    public function capabilities(): array
+    {
+        return [AdapterCapability::StockMovements, AdapterCapability::StockSnapshots];
+    }
+
+    public function historyStart(): DateTimeImmutable
+    {
+        return $this->historyStart;
+    }
+
+    public function historyEnd(): DateTimeImmutable
+    {
+        return $this->historyStart->modify('+'.($this->historyDays - 1).' days');
+    }
+
+    /** Эталонные факты о сценариях (см. MockScenarioManifest). */
+    public function manifest(): MockScenarioManifest
+    {
+        $ids = fn (string $kind): array => array_map(
+            static fn (int $i): string => "prod-{$i}",
+            $this->productIndexesOf($kind),
+        );
+        $date = fn (int $day): string => $this->historyStart->modify("+{$day} days")->format('Y-m-d');
+        $warehouse = $this->warehouseIds[0];
+
+        $dead = [];
+        foreach ($ids('dead') as $id) {
+            $dead[$id] = $date($this->historyDays - 1 - $this->scenarios->deadDays);
+        }
+
+        $nearZero = [];
+        foreach ($this->productIndexesOf('near_zero') as $k => $i) {
+            [$rate, $daysLeft] = $this->nearZeroParams($k);
+            $nearZero["prod-{$i}"] = [
+                'warehouse_id' => $warehouse,
+                'daily_rate' => $rate,
+                'stock_at_end' => $rate * $daysLeft,
+                'days_to_zero' => $daysLeft,
+            ];
+        }
+
+        $gaps = [];
+        foreach ($ids('gaps') as $id) {
+            $gaps[$id] = array_map(
+                fn (int $start): array => ['from' => $date($start), 'to' => $date($start + self::GAP_LENGTH - 1)],
+                $this->gapStarts(),
+            );
+        }
+
+        $spikes = [];
+        [$spikeFrom, $spikeTo] = $this->spikeWindow();
+        foreach ($ids('spike') as $id) {
+            $spikes[$id] = [
+                'from' => $date($spikeFrom),
+                'to' => $date($spikeTo),
+                'multiplier' => self::SPIKE_MULTIPLIER,
+                'baseline_daily' => self::SPIKE_BASE_RATE,
+            ];
+        }
+
+        return new MockScenarioManifest(
+            historyStart: $this->historyStart->format('Y-m-d'),
+            historyEnd: $this->historyEnd()->format('Y-m-d'),
+            seasonalProductIds: $ids('seasonal'),
+            seasonPeakMonth: 12,
+            seasonTroughMonth: 6,
+            deadProducts: $dead,
+            deadDays: $this->scenarios->deadDays,
+            nearZeroProducts: $nearZero,
+            gapProducts: $gaps,
+            spikeProducts: $spikes,
+            hasTransfers: count($this->warehouseIds) > 1,
         );
     }
 
     /**
-     * @param  list<string>  $warehouseIds
+     * Движения одного товара за дни [$fromDay..$toDay] (индексы от
+     * начала окна истории). Состояние (остатки) всегда прогоняется с
+     * нулевого дня, поэтому результат не зависит от $fromDay.
+     *
      * @return Generator<StockMovement>
      */
-    private function transfers(
-        Randomizer $randomizer,
-        string $fromWarehouseId,
-        array $warehouseIds,
-        int $productCount,
-        DateTimeImmutable $rangeStart,
-        DateTimeImmutable $rangeEnd,
-        int $count,
-        int &$counter,
-    ): Generator {
-        $warehouseCount = count($warehouseIds);
+    private function movementsFor(int $index, int $fromDay, int $toDay): Generator
+    {
+        $kind = $this->kindOf($index);
+        // id — функция (товар, день, тип, склад): за день на складе бывает
+        // не больше одного движения каждого типа, а от диапазона запроса
+        // id зависеть не должен.
+        $emit = function (int $day, int $hour, int $warehouse, StockMovementType $type, int $quantity, array $meta = []) use ($index): StockMovement {
+            return new StockMovement(
+                id: "mv-{$index}-{$day}-{$type->value}-{$warehouse}",
+                productId: "prod-{$index}",
+                warehouseId: $this->warehouseIds[$warehouse],
+                quantity: (float) $quantity,
+                type: $type,
+                date: $this->historyStart->modify("+{$day} days")->setTime($hour, 0),
+                meta: $meta,
+            );
+        };
 
-        for ($i = 0; $i < $count; $i++) {
-            $counter++;
-            $toWarehouseId = $fromWarehouseId;
-            while ($toWarehouseId === $fromWarehouseId) {
-                $toWarehouseId = $warehouseIds[$randomizer->getInt(0, $warehouseCount - 1)];
+        yield from match ($kind) {
+            'near_zero' => $this->nearZeroMovements($index, $fromDay, $toDay, $emit),
+            'gaps' => $this->gapMovements($fromDay, $toDay, $emit),
+            'spike' => $this->spikeMovements($fromDay, $toDay, $emit),
+            default => $this->regularMovements($index, $kind, $fromDay, $toDay, $emit),
+        };
+    }
+
+    /**
+     * Обычный товар (а также dead и seasonal — их отличия заданы
+     * kind): случайные, но детерминированные по $seed продажи,
+     * пополнение по точке заказа, перемещения между складами,
+     * изредка списания и корректировки. В хронологическом порядке
+     * внутри дня (приёмка 08, перемещение 10, продажа 12, списание 16,
+     * корректировка 18) остаток ни на одном складе не уходит в минус.
+     *
+     * @return Generator<StockMovement>
+     */
+    private function regularMovements(int $index, string $kind, int $fromDay, int $toDay, callable $emit): Generator
+    {
+        $random = $this->randomizerFor("product:{$index}");
+        $warehouseCount = count($this->warehouseIds);
+        $seasonal = $kind === 'seasonal';
+        $lambda = $seasonal ? 6 : $random->getInt(1, 5);
+        $peak = $seasonal ? 1.8 : 1.0;
+        $reorderPoint = (int) ceil($lambda * $peak * 7);
+        $batch = (int) ceil($lambda * $peak * 30);
+        $stock = array_fill(0, $warehouseCount, 0);
+
+        $lastDay = $kind === 'dead' ? $this->historyDays - 1 - $this->scenarios->deadDays : $this->historyDays - 1;
+
+        for ($day = 0; $day <= min($toDay, $lastDay); $day++) {
+            if ($kind === 'dead' && $day === $lastDay) {
+                // Последнее движение перед «смертью»: остаток гарантированно > 0.
+                $stock[0] += 50;
+                if ($day >= $fromDay) {
+                    yield $emit($day, 8, 0, StockMovementType::Receipt, 50);
+                }
+
+                break;
             }
 
-            $productIndex = $randomizer->getInt(1, $productCount);
+            for ($w = 0; $w < $warehouseCount; $w++) {
+                if ($stock[$w] < $reorderPoint) {
+                    $stock[$w] += $batch;
+                    if ($day >= $fromDay) {
+                        yield $emit($day, 8, $w, StockMovementType::Receipt, $batch);
+                    }
+                }
+            }
 
-            yield new StockMovement(
-                id: "stock-transfer-{$counter}",
-                productId: "prod-{$productIndex}",
-                warehouseId: $fromWarehouseId,
-                quantity: (float) $randomizer->getInt(1, 30),
-                type: StockMovementType::Transfer,
-                date: $this->randomDateBetween($randomizer, $rangeStart, $rangeEnd),
-                toWarehouseId: $toWarehouseId,
-            );
+            if ($warehouseCount > 1 && $random->getInt(1, 45) === 1) {
+                $from = array_search(max($stock), $stock, true);
+                $to = ($from + $random->getInt(1, $warehouseCount - 1)) % $warehouseCount;
+                if ($stock[$from] >= 2) {
+                    $quantity = $random->getInt(1, intdiv($stock[$from], 2));
+                    $stock[$from] -= $quantity;
+                    $stock[$to] += $quantity;
+                    if ($day >= $fromDay) {
+                        $meta = ['transfer_id' => "tr-{$index}-{$day}"];
+                        yield $emit($day, 10, $from, StockMovementType::TransferOut, -$quantity, $meta);
+                        yield $emit($day, 10, $to, StockMovementType::TransferIn, $quantity, $meta);
+                    }
+                }
+            }
+
+            $multiplier = $seasonal ? 1 + 0.8 * cos(2 * M_PI * ($this->dayOfYear[$day] - 355) / 365) : 1.0;
+            if ($random->getInt(1, 100) <= 60) {
+                $quantity = $random->getInt(1, max(1, (int) round(2 * $lambda * $multiplier)));
+                $candidates = array_keys(array_filter($stock, static fn (int $s): bool => $s >= $quantity));
+                if ($candidates !== []) {
+                    $w = $candidates[$random->getInt(0, count($candidates) - 1)];
+                    $stock[$w] -= $quantity;
+                    if ($day >= $fromDay) {
+                        yield $emit($day, 12, $w, StockMovementType::Sale, -$quantity);
+                    }
+                }
+            }
+
+            if ($random->getInt(1, 200) === 1) {
+                $w = $random->getInt(0, $warehouseCount - 1);
+                $quantity = $random->getInt(1, 3);
+                if ($stock[$w] >= $quantity) {
+                    $stock[$w] -= $quantity;
+                    if ($day >= $fromDay) {
+                        yield $emit($day, 16, $w, StockMovementType::Writeoff, -$quantity);
+                    }
+                }
+            }
+
+            if ($random->getInt(1, 300) === 1) {
+                $w = $random->getInt(0, $warehouseCount - 1);
+                $delta = $random->getInt(1, 3) * ($random->getInt(0, 1) === 1 ? 1 : -1);
+                if ($stock[$w] + $delta >= 0) {
+                    $stock[$w] += $delta;
+                    if ($day >= $fromDay) {
+                        yield $emit($day, 18, $w, StockMovementType::Adjustment, $delta);
+                    }
+                }
+            }
         }
+    }
+
+    /**
+     * Ровно daily_rate продаж в день на первом складе, одна приёмка
+     * на старте — остаток на конец истории равен daily_rate × days_to_zero.
+     *
+     * @return Generator<StockMovement>
+     */
+    private function nearZeroMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
+    {
+        [$rate, $daysLeft] = $this->nearZeroParams(array_search($index, $this->productIndexesOf('near_zero'), true));
+
+        yield from $this->constantSales($fromDay, $toDay, $emit, [
+            [0, $this->historyDays, $rate, $rate * ($this->historyDays + $daysLeft)],
+        ]);
+    }
+
+    /**
+     * Продажи GAP_RATE/день сегментами; между сегментами — окна
+     * GAP_LENGTH дней с нулевым остатком и без продаж.
+     *
+     * @return Generator<StockMovement>
+     */
+    private function gapMovements(int $fromDay, int $toDay, callable $emit): Generator
+    {
+        $segments = [];
+        $start = 0;
+        foreach ([...$this->gapStarts(), $this->historyDays] as $end) {
+            $isLast = $end === $this->historyDays;
+            $receipt = self::GAP_RATE * ($end - $start) + ($isLast ? self::GAP_RATE * 10 : 0);
+            $segments[] = [$start, $end, self::GAP_RATE, $receipt];
+            $start = $end + self::GAP_LENGTH;
+        }
+
+        yield from $this->constantSales($fromDay, $toDay, $emit, $segments);
+    }
+
+    /**
+     * @return Generator<StockMovement>
+     */
+    private function spikeMovements(int $fromDay, int $toDay, callable $emit): Generator
+    {
+        [$spikeFrom, $spikeTo] = $this->spikeWindow();
+        $spikeDays = $spikeTo - $spikeFrom + 1;
+        $receipt = self::SPIKE_BASE_RATE * ($this->historyDays + $spikeDays * (self::SPIKE_MULTIPLIER - 1) + 30);
+
+        yield from $this->constantSales($fromDay, $toDay, $emit, [[0, $this->historyDays, self::SPIKE_BASE_RATE, $receipt]], function (int $day) use ($spikeFrom, $spikeTo): int {
+            return $day >= $spikeFrom && $day <= $spikeTo ? self::SPIKE_MULTIPLIER : 1;
+        });
+    }
+
+    /**
+     * Сегменты [первый день, день после последнего, продажи/день,
+     * приёмка в первый день] на первом складе.
+     *
+     * @param  list<array{int, int, int, int}>  $segments
+     * @return Generator<StockMovement>
+     */
+    private function constantSales(int $fromDay, int $toDay, callable $emit, array $segments, ?callable $factor = null): Generator
+    {
+        foreach ($segments as [$start, $end, $rate, $receipt]) {
+            if ($start > $toDay) {
+                return;
+            }
+
+            if ($start >= $fromDay) {
+                yield $emit($start, 8, 0, StockMovementType::Receipt, $receipt);
+            }
+
+            for ($day = max($start, $fromDay); $day < min($end, $toDay + 1); $day++) {
+                yield $emit($day, 12, 0, StockMovementType::Sale, -$rate * ($factor === null ? 1 : $factor($day)));
+            }
+        }
+    }
+
+    /** @return array{int, int} [daily_rate, days_to_zero] для k-го near_zero-товара. */
+    private function nearZeroParams(int $k): array
+    {
+        return [2 + $k % 3, 3 + $k % 4];
+    }
+
+    /** @return list<int> индексы дней начала окон нулевого остатка */
+    private function gapStarts(): array
+    {
+        return [intdiv($this->historyDays, 4), intdiv($this->historyDays, 2), intdiv($this->historyDays * 3, 4)];
+    }
+
+    /** @return array{int, int} */
+    private function spikeWindow(): array
+    {
+        $from = intdiv($this->historyDays * 3, 5);
+
+        return [$from, $from + self::SPIKE_DAYS - 1];
+    }
+
+    private function kindOf(int $index): string
+    {
+        foreach ($this->kindRanges as $kind => [$first, $last]) {
+            if ($index >= $first && $index <= $last) {
+                return $kind;
+            }
+        }
+
+        return 'regular';
+    }
+
+    /** @return list<int> */
+    private function productIndexesOf(string $kind): array
+    {
+        [$first, $last] = $this->kindRanges[$kind];
+
+        return $first > $last ? [] : range($first, $last);
+    }
+
+    /** Индекс дня от начала окна истории (может быть < 0 или ≥ длины). */
+    private function dayIndex(DateTimeImmutable $date): int
+    {
+        $day = new DateTimeImmutable($date->format('Y-m-d'));
+
+        return (int) $this->historyStart->diff($day)->format('%r%a');
     }
 
     private function seasonalMultiplier(int $month): float
