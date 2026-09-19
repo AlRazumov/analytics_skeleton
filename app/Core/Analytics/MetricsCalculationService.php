@@ -6,6 +6,7 @@ use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
+use DateTimeImmutable;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -20,19 +21,21 @@ use RuntimeException;
  * без изменений (см. отчёт stage-04, требование "логика отделена от
  * команды").
  *
- * Обращения к адаптеру. `fetchDeals()` и `fetchStockMovements()` для
- * revenue/abc/xyz/turnover вызываются здесь ровно по одному разу за
- * calculate(), а калькуляторы получают уже готовые данные аргументом
- * (раньше fetchDeals() вызывался трижды — см. docs/roadmap.md и
- * docs/reports/stage-04-report.md). Исключение — метрики остатков
- * (DeadStockCalculator, DaysOfStockCalculator): им нужны остатки на
- * разные даты и окна движений, поэтому они принимают сам адаптер и
- * читают его сами — за один calculate() это ещё один вызов
- * fetchStockMovements() и один fetchStock() у неликвидов (расширенное окно
- * lookback) и по одному fetchStock() + fetchStockMovements() на каждый
- * месяц диапазона у дней до обнуления. Эти метрики считаются, только если
- * у адаптера есть StockMovements и StockSnapshots (иначе причина уходит в
- * лог, без исключения).
+ * Обращения к адаптеру. `fetchDeals()` вызывается здесь ровно один раз
+ * за calculate() и отдаётся revenue/abc/xyz готовым аргументом (раньше
+ * вызывался трижды — см. docs/roadmap.md и docs/reports/stage-04-report.md).
+ * Для оборачиваемости здесь же один `fetchStockMovements()` и один
+ * `fetchStock(начало диапазона − 1 день)` (стартовый остаток), результат
+ * передаётся калькулятору аргументами. Метрики остатков
+ * (DeadStockCalculator, DaysOfStockCalculator) принимают сам адаптер и
+ * читают его сами: неликвидам нужны остатки и окно движений с lookback
+ * (по одному fetchStock() и fetchStockMovements()), дням до обнуления —
+ * по одному fetchStock() + fetchStockMovements() на каждый месяц
+ * диапазона. Итого за calculate() при обоих capabilities:
+ * fetchStock() и fetchStockMovements() — по (2 + число месяцев) раз.
+ * Все три метрики остатков считаются, только если у адаптера есть
+ * StockMovements и StockSnapshots (иначе причина — warning в лог, без
+ * исключения; turnover без остатка не считается, а не считается неверно).
  *
  * AbcClassifier и XyzClassifier независимо считают свою часть
  * классификации и каждый пишет только свою часть value_meta
@@ -72,11 +75,26 @@ final class MetricsCalculationService
         $hasSnapshots = in_array(AdapterCapability::StockSnapshots, $capabilities, true);
 
         // Источник без нужных возможностей не ломает прогон: метрика не
-        // считается, причина уходит в лог.
-        if (! $hasMovements) {
-            $this->logger->warning('Метрика turnover не считается: у адаптера нет capability StockMovements.');
+        // считается, причина уходит в лог. Оборачиваемости нужен реальный
+        // остаток на начало диапазона (StockSnapshots) — считать без него
+        // значит писать заведомо неверные числа.
+        $canTurnover = $hasMovements && $hasSnapshots;
+        if (! $canTurnover) {
+            $this->logger->warning(sprintf(
+                'Метрика turnover не считается: нужны capabilities StockMovements и StockSnapshots, есть %s.',
+                implode(', ', array_map(fn ($c) => $c->value, $capabilities)) ?: 'ни одной',
+            ));
         }
-        $stockMovements = $hasMovements ? $adapter->fetchStockMovements($period) : [];
+
+        $turnoverRecords = [];
+        if ($canTurnover) {
+            $openingStock = [];
+            $openingDate = (new DateTimeImmutable($period->start->format('Y-m-d')))->modify('-1 day');
+            foreach ($adapter->fetchStock($openingDate) as $balance) {
+                $openingStock[$balance->productId] = ($openingStock[$balance->productId] ?? 0.0) + $balance->quantity;
+            }
+            $turnoverRecords = $this->turnover->calculate($adapter->fetchStockMovements($period), $period, $openingStock);
+        }
 
         $records = [
             ...$this->revenue->calculate($deals, $period),
@@ -84,7 +102,7 @@ final class MetricsCalculationService
                 $this->abc->calculate($deals, $period),
                 $this->xyz->calculate($deals, $period),
             ),
-            ...$this->turnover->calculate($stockMovements, $period),
+            ...$turnoverRecords,
         ];
 
         // Метрики остатков читают окна сами (свои вызовы fetchStock /

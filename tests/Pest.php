@@ -76,6 +76,8 @@ function fakeAdapter(array $deals = [], array $stockMovements = [], ?array $capa
 
         public int $fetchStockMovementsCalls = 0;
 
+        public int $fetchStockCalls = 0;
+
         public function __construct(
             private array $deals,
             private array $stockMovements,
@@ -103,6 +105,8 @@ function fakeAdapter(array $deals = [], array $stockMovements = [], ?array $capa
 
         public function fetchStock(?DateTimeImmutable $asOf = null): iterable
         {
+            $this->fetchStockCalls++;
+
             return [];
         }
 

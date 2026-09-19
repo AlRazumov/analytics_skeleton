@@ -54,3 +54,19 @@ it('keeps an explicit --period untouched by the mock-based default', function ()
         ->expectsOutputToContain('период=2026-05-01..2026-06-30')
         ->assertExitCode(0);
 });
+
+it('overwrites OLD turnover values of the recalculated month without hitting the unique index', function () {
+    // Значение, как его мог оставить прежний расчёт (сальдо от нуля).
+    MetricsSnapshot::query()->create([
+        'entity_type' => 'product', 'entity_id' => 'prod-3', 'metric_key' => 'turnover', 'value' => 999.0,
+        'period_type' => 'month', 'period_start' => '2026-08-01', 'period_end' => '2026-08-31',
+    ]);
+
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-08:2026-08'])->assertExitCode(0);
+
+    $rows = MetricsSnapshot::query()->where('metric_key', 'turnover')->where('entity_id', 'prod-3')->get();
+
+    expect($rows)->toHaveCount(1)
+        ->and((float) $rows[0]->value)->not->toBe(999.0)
+        ->and(collect($rows[0]->value_meta)->keys()->sort()->values()->all())->toBe(['avg_stock', 'closing_stock', 'opening_stock', 'units_sold']);
+});

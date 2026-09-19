@@ -3,7 +3,6 @@
 use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
-use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 
 it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classification row per product', function () {
@@ -44,27 +43,26 @@ it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classificatio
     expect($byId['prod-1']->period)->toBe('month:2026-02');
 });
 
-it('calls fetchDeals() and fetchStockMovements() exactly once per calculate(), not once per calculator', function () {
-    // Регрессионный тест против исходной проблемы (см. docs/roadmap.md
-    // и docs/reports/stage-04-report.md): раньше fetchDeals()
-    // вызывался трижды (RevenueByPeriodCalculator, AbcClassifier,
-    // XyzClassifier дергали адаптер независимо), а fetchStockMovements()
-    // — отдельно из TurnoverCalculator. Проверяем не "результат тот же",
-    // а сам факт единственного вызова каждого fetch*-метода.
-    $deals = [
-        new Deal('d-1', 'prod-1', 100.0, new DateTimeImmutable('2026-01-05')),
-    ];
-    $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
+it('calls fetchDeals() once and reads stock/movements a documented number of times per calculate()', function () {
+    // Регрессионный тест против исходной проблемы (см. docs/roadmap.md и
+    // docs/reports/stage-04-report.md): раньше fetchDeals() вызывался трижды
+    // (Revenue/Abc/Xyz дергали адаптер независимо). Проверяем сам факт
+    // единственного вызова fetchDeals() и число обращений к остаткам и
+    // движениям: turnover — по одному fetchStock() и fetchStockMovements()
+    // (стартовый остаток), неликвиды — по одному, дни до обнуления — по одному
+    // на каждый месяц диапазона; итого (2 + число месяцев) каждого.
+    // Раньше тест требовал ровно один fetchStockMovements(): это было верно
+    // до появления метрик остатков, которые читают адаптер сами (этап 07).
+    $deals = [new Deal('d-1', 'prod-1', 100.0, new DateTimeImmutable('2026-01-05'))];
+    $twoMonths = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-02-28'));
 
-    // Только StockMovements: метрики остатков (days_since_last_sale,
-    // days_of_stock) читают окна сами, отдельными вызовами, и в этот
-    // регрессионный тест не входят — они покрыты своими тестами.
-    $adapter = fakeAdapter($deals, capabilities: [AdapterCapability::StockMovements]);
+    $adapter = fakeAdapter($deals);
 
-    (new MetricsCalculationService)->calculate($adapter, $period);
+    (new MetricsCalculationService)->calculate($adapter, $twoMonths);
 
-    expect($adapter->fetchDealsCalls)->toBe(1);
-    expect($adapter->fetchStockMovementsCalls)->toBe(1);
+    expect($adapter->fetchDealsCalls)->toBe(1)
+        ->and($adapter->fetchStockMovementsCalls)->toBe(2 + 2)
+        ->and($adapter->fetchStockCalls)->toBe(2 + 2);
 });
 
 it('throws when ABC and XYZ records for the same entityId disagree on period', function () {

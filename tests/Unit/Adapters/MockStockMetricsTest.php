@@ -124,7 +124,7 @@ it('skips the gap window metric when the window has fewer than min_in_stock_days
         ->and($calc->lastSkipped['too_few_in_stock_days'])->toBeGreaterThanOrEqual(1);
 });
 
-it('does not compute or fail stock metrics without the required capabilities and logs why', function (array $capabilities, bool $expectTurnover) {
+it('does not compute or fail stock metrics and turnover without the required capabilities and logs why', function (array $capabilities) {
     $logger = new class extends AbstractLogger
     {
         public array $messages = [];
@@ -140,12 +140,13 @@ it('does not compute or fail stock metrics without the required capabilities and
     $records = (new MetricsCalculationService(logger: $logger))->calculate($adapter, $range);
 
     $keys = collect($records)->pluck('metricKey')->unique()->all();
-    expect($keys)->not->toContain('days_since_last_sale')->not->toContain('days_of_stock')
-        ->and(collect($logger->messages)->pluck(1)->implode(' '))->toContain('days_since_last_sale');
+    $log = collect($logger->messages)->filter(fn ($m) => $m[0] === 'warning')->pluck(1)->implode(' | ');
+    expect($keys)->not->toContain('turnover')->not->toContain('days_since_last_sale')->not->toContain('days_of_stock')
+        ->and($log)->toContain('turnover')->toContain('days_since_last_sale');
 })->with([
-    'no capabilities' => [[], false],
-    'movements only' => [[AdapterCapability::StockMovements], true],
-    'snapshots only' => [[AdapterCapability::StockSnapshots], false],
+    'no capabilities' => [[]],
+    'movements only' => [[AdapterCapability::StockMovements]],
+    'snapshots only' => [[AdapterCapability::StockSnapshots]],
 ]);
 
 it('computes both stock metrics through the service when capabilities are present', function () {
