@@ -102,6 +102,12 @@
             <nav class="header__nav">
                 <a href="{{ route('dashboards.overview') }}" @class(['is-active' => request()->routeIs('dashboards.overview')])>Обзор продаж</a>
                 <a href="{{ route('dashboards.abc-xyz') }}" @class(['is-active' => request()->routeIs('dashboards.abc-xyz')])>ABC/XYZ-анализ</a>
+                @if (config('analytics.features.dead_stock') || config('analytics.features.stockout_risk'))
+                    <a href="{{ route('dashboards.stock') }}" @class(['is-active' => request()->routeIs('dashboards.stock')])>Остатки</a>
+                @endif
+                @if (config('analytics.features.top_products'))
+                    <a href="{{ route('dashboards.top-products') }}" @class(['is-active' => request()->routeIs('dashboards.top-products')])>Топ товаров</a>
+                @endif
             </nav>
         @endunless
         <div class="header__user-slot">

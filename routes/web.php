@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Dashboards\AbcXyzDashboardController;
 use App\Http\Controllers\Dashboards\OverviewDashboardController;
+use App\Http\Controllers\Dashboards\StockDashboardController;
+use App\Http\Controllers\Dashboards\TopProductsDashboardController;
 use App\Http\Controllers\DemoWidgetsController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,4 +18,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboards/overview', OverviewDashboardController::class)->name('dashboards.overview');
     Route::get('/dashboards/abc-xyz', AbcXyzDashboardController::class)->name('dashboards.abc-xyz');
+
+    // Флаги (analytics.features.*) скрывают только показ; метрики считаются всегда.
+    Route::get('/dashboards/stock', StockDashboardController::class)
+        ->middleware('feature:dead_stock,stockout_risk')->name('dashboards.stock');
+    Route::get('/dashboards/top-products', TopProductsDashboardController::class)
+        ->middleware('feature:top_products')->name('dashboards.top-products');
 });
