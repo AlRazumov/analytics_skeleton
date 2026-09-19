@@ -3,6 +3,9 @@
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\AdapterCapability;
+use App\Core\Domain\Enums\StockMovementType;
+use App\Core\Domain\StockBalance;
+use App\Core\Domain\StockMovement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -108,4 +111,70 @@ function fakeAdapter(array $deals = [], array $stockMovements = [], ?array $capa
             return $this->capabilities;
         }
     };
+}
+
+/**
+ * Адаптер с заданными движениями и начальными остатками ($opening:
+ * "productId|warehouseId" => qty на момент ДО первого движения).
+ * fetchStock(asOf) = opening + движения до конца дня asOf — как у
+ * настоящего источника; fetchStockMovements фильтрует по датам включительно.
+ */
+function stubStockAdapter(array $movements, array $opening = [], ?array $capabilities = null): DataSourceAdapter
+{
+    return new class($movements, $opening, $capabilities ?? [AdapterCapability::StockMovements, AdapterCapability::StockSnapshots]) implements DataSourceAdapter
+    {
+        public function __construct(private array $movements, private array $opening, private array $capabilities) {}
+
+        public function fetchDeals(DateRange $period): iterable
+        {
+            return [];
+        }
+
+        public function fetchProducts(): iterable
+        {
+            return [];
+        }
+
+        public function fetchStockMovements(DateRange $period): iterable
+        {
+            $from = $period->start->format('Y-m-d');
+            $to = $period->end->format('Y-m-d');
+
+            foreach ($this->movements as $m) {
+                $day = $m->date->format('Y-m-d');
+                if ($day >= $from && $day <= $to) {
+                    yield $m;
+                }
+            }
+        }
+
+        public function fetchStock(?DateTimeImmutable $asOf = null): iterable
+        {
+            $balances = $this->opening;
+            foreach ($this->movements as $m) {
+                if ($asOf === null || $m->date->format('Y-m-d') <= $asOf->format('Y-m-d')) {
+                    $key = $m->productId.'|'.$m->warehouseId;
+                    $balances[$key] = ($balances[$key] ?? 0.0) + $m->quantity;
+                }
+            }
+
+            foreach ($balances as $key => $quantity) {
+                [$productId, $warehouseId] = explode('|', $key);
+                yield new StockBalance($productId, $warehouseId, (float) $quantity);
+            }
+        }
+
+        public function capabilities(): array
+        {
+            return $this->capabilities;
+        }
+    };
+}
+
+/** Движение для тестов: тип определяет знак по $quantity (передавайте со знаком). */
+function stockMove(string $day, string $productId, string $warehouseId, StockMovementType $type, float $quantity): StockMovement
+{
+    static $n = 0;
+
+    return new StockMovement('t-'.++$n, $productId, $warehouseId, $quantity, $type, new DateTimeImmutable($day.' 12:00'));
 }

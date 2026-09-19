@@ -3,6 +3,7 @@
 use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
+use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 
 it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classification row per product', function () {
@@ -55,7 +56,10 @@ it('calls fetchDeals() and fetchStockMovements() exactly once per calculate(), n
     ];
     $period = new DateRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-01-31'));
 
-    $adapter = fakeAdapter($deals);
+    // Только StockMovements: метрики остатков (days_since_last_sale,
+    // days_of_stock) читают окна сами, отдельными вызовами, и в этот
+    // регрессионный тест не входят — они покрыты своими тестами.
+    $adapter = fakeAdapter($deals, capabilities: [AdapterCapability::StockMovements]);
 
     (new MetricsCalculationService)->calculate($adapter, $period);
 

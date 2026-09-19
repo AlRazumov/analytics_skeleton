@@ -6,6 +6,8 @@ use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use RuntimeException;
 
 /**
@@ -44,6 +46,9 @@ final class MetricsCalculationService
         private readonly AbcClassifier $abc = new AbcClassifier,
         private readonly XyzClassifier $xyz = new XyzClassifier,
         private readonly TurnoverCalculator $turnover = new TurnoverCalculator,
+        private readonly DeadStockCalculator $deadStock = new DeadStockCalculator,
+        private readonly DaysOfStockCalculator $daysOfStock = new DaysOfStockCalculator,
+        private readonly LoggerInterface $logger = new NullLogger,
     ) {}
 
     /**
@@ -57,11 +62,16 @@ final class MetricsCalculationService
         // материализуем в массив сразу после единственного вызова.
         $rawDeals = $adapter->fetchDeals($period);
         $deals = is_array($rawDeals) ? $rawDeals : iterator_to_array($rawDeals);
-        // Источник без истории движений не ломает прогон: оборачиваемость
-        // просто не считается (нет данных — нет метрики).
-        $stockMovements = in_array(AdapterCapability::StockMovements, $adapter->capabilities(), true)
-            ? $adapter->fetchStockMovements($period)
-            : [];
+        $capabilities = $adapter->capabilities();
+        $hasMovements = in_array(AdapterCapability::StockMovements, $capabilities, true);
+        $hasSnapshots = in_array(AdapterCapability::StockSnapshots, $capabilities, true);
+
+        // Источник без нужных возможностей не ломает прогон: метрика не
+        // считается, причина уходит в лог.
+        if (! $hasMovements) {
+            $this->logger->warning('Метрика turnover не считается: у адаптера нет capability StockMovements.');
+        }
+        $stockMovements = $hasMovements ? $adapter->fetchStockMovements($period) : [];
 
         $records = [
             ...$this->revenue->calculate($deals, $period),
@@ -71,6 +81,22 @@ final class MetricsCalculationService
             ),
             ...$this->turnover->calculate($stockMovements, $period),
         ];
+
+        // Метрики остатков читают окна сами (свои вызовы fetchStock /
+        // fetchStockMovements), им нужны обе возможности.
+        if ($hasMovements && $hasSnapshots) {
+            array_push($records, ...$this->deadStock->calculate($adapter, $period));
+            array_push($records, ...$this->daysOfStock->calculate($adapter, $period));
+            $skipped = $this->daysOfStock->lastSkipped;
+            $this->logger->info('days_of_stock: пропущено пар товар×склад', $skipped);
+        } else {
+            $this->logger->warning(sprintf(
+                'Метрики %s и %s не считаются: нужны capabilities StockMovements и StockSnapshots, есть %s.',
+                DeadStockCalculator::METRIC_KEY,
+                DaysOfStockCalculator::METRIC_KEY,
+                implode(', ', array_map(fn ($c) => $c->value, $capabilities)) ?: 'ни одной',
+            ));
+        }
 
         return $records;
     }

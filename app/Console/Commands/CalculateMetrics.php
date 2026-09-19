@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Adapters\Mock\MockDataProfile;
 use App\Adapters\MockAdapter;
+use App\Core\Analytics\DaysOfStockCalculator;
+use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
@@ -29,7 +31,14 @@ class CalculateMetrics extends Command
 
     protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover) из DataSourceAdapter в metrics_snapshots';
 
-    private const array METRIC_KEYS = ['revenue', 'abc_xyz_classification', 'turnover'];
+    /** Пары [entity_type, metric_key], которые пересчитываются (и удаляются перед записью). */
+    private const array METRICS = [
+        ['product', 'revenue'],
+        ['product', 'abc_xyz_classification'],
+        ['product', 'turnover'],
+        [DeadStockCalculator::ENTITY_TYPE, DeadStockCalculator::METRIC_KEY],
+        [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
+    ];
 
     public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer): int
     {
@@ -112,8 +121,11 @@ class CalculateMetrics extends Command
         }
 
         MetricsSnapshot::query()
-            ->where('entity_type', 'product')
-            ->whereIn('metric_key', self::METRIC_KEYS)
+            ->where(function ($query) {
+                foreach (self::METRICS as [$entityType, $metricKey]) {
+                    $query->orWhere(fn ($q) => $q->where('entity_type', $entityType)->where('metric_key', $metricKey));
+                }
+            })
             ->where('period_type', 'month')
             ->whereIn('period_start', $periods)
             ->delete();

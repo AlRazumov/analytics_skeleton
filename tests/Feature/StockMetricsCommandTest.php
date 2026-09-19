@@ -1,0 +1,38 @@
+<?php
+
+use App\Models\MetricsSnapshot;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
+
+function stockMetricRows(): array
+{
+    return MetricsSnapshot::query()
+        ->whereIn('metric_key', ['days_since_last_sale', 'days_of_stock'])
+        ->orderBy('metric_key')->orderBy('entity_id')->orderBy('period_start')
+        ->get(['entity_type', 'entity_id', 'metric_key', 'value', 'value_meta', 'period_type', 'period_start'])
+        ->map(fn ($r) => $r->toArray())
+        ->all();
+}
+
+it('recalculates the same months idempotently: no unique-index violation and identical values', function () {
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-06:2026-08'])->assertExitCode(0);
+    $first = stockMetricRows();
+
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-06:2026-08'])->assertExitCode(0);
+    $second = stockMetricRows();
+
+    expect($first)->not->toBeEmpty()
+        ->and(collect($first)->pluck('metric_key')->unique()->sort()->values()->all())->toBe(['days_of_stock', 'days_since_last_sale'])
+        ->and(collect($first)->pluck('entity_type')->unique()->sort()->values()->all())->toBe(['product', 'product_warehouse'])
+        ->and($second)->toEqual($first);
+});
+
+it('replaces only the recalculated months on a backfill of a narrower period', function () {
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-06:2026-08'])->assertExitCode(0);
+    $before = MetricsSnapshot::query()->where('metric_key', 'days_of_stock')->whereDate('period_start', '2026-06-01')->count();
+
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-08:2026-08'])->assertExitCode(0);
+
+    expect(MetricsSnapshot::query()->where('metric_key', 'days_of_stock')->whereDate('period_start', '2026-06-01')->count())->toBe($before);
+});
