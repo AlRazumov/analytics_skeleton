@@ -4,10 +4,12 @@ namespace App\Repositories;
 
 use App\Core\Domain\Enums\ComparisonBase;
 use App\Core\Domain\Enums\Direction;
+use App\Core\Domain\Enums\PeriodGranularity;
 use App\Core\Domain\Enums\RankBy;
 use App\Core\Domain\Period;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\DTO\MetricComparisonRow;
+use DateTimeImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +48,8 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         RankBy $by = RankBy::Value,
         Direction $dir = Direction::Desc,
         ?ComparisonBase $base = null,
+        ?float $minValue = null,
+        ?float $maxValue = null,
     ): array {
         if ($limit < 1 || $limit > self::MAX_LIMIT) {
             throw new InvalidArgumentException('limit должен быть в диапазоне 1..'.self::MAX_LIMIT.", получено {$limit}.");
@@ -55,6 +59,7 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         }
 
         $query = $this->query($metricKey, $entityType, $period, $base);
+        $this->applyValueRange($query, $minValue, $maxValue);
 
         // Направление берётся только из enum — в SQL подставляется константа.
         $direction = $dir === Direction::Asc ? 'asc' : 'desc';
@@ -72,6 +77,44 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             ->all();
     }
 
+    public function count(
+        string $metricKey,
+        string $entityType,
+        Period $period,
+        ?float $minValue = null,
+        ?float $maxValue = null,
+    ): int {
+        $query = $this->query($metricKey, $entityType, $period, null);
+        $this->applyValueRange($query, $minValue, $maxValue);
+
+        return $query->count();
+    }
+
+    public function latestPeriod(string $metricKey, PeriodGranularity $granularity): ?Period
+    {
+        $start = DB::table('metrics_snapshots')
+            ->where('metric_key', $metricKey)
+            ->where('period_type', $granularity->value)
+            ->max('period_start');
+
+        return $start === null
+            ? null
+            : Period::containing($granularity, new DateTimeImmutable(substr((string) $start, 0, 10)));
+    }
+
+    private function applyValueRange(Builder $query, ?float $minValue, ?float $maxValue): void
+    {
+        if ($minValue !== null && $maxValue !== null && $minValue > $maxValue) {
+            throw new InvalidArgumentException("minValue ({$minValue}) не может быть больше maxValue ({$maxValue}).");
+        }
+        if ($minValue !== null) {
+            $query->where('cur.value', '>=', $minValue);
+        }
+        if ($maxValue !== null) {
+            $query->where('cur.value', '<=', $maxValue);
+        }
+    }
+
     private function query(string $metricKey, string $entityType, Period $period, ?ComparisonBase $base): Builder
     {
         $query = DB::table('metrics_snapshots as cur')
@@ -79,7 +122,7 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             ->where('cur.entity_type', $entityType)
             ->where('cur.period_type', $period->granularity->value)
             ->where('cur.period_start', $period->start->format('Y-m-d'))
-            ->select('cur.entity_id', 'cur.value');
+            ->select('cur.entity_id', 'cur.value', 'cur.value_meta');
 
         if ($base === null) {
             return $query->addSelect(DB::raw('NULL as base_value'));
@@ -106,6 +149,7 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             $row->entity_id,
             (float) $row->value,
             $row->base_value === null ? null : (float) $row->base_value,
+            $row->value_meta === null ? [] : (json_decode($row->value_meta, true) ?? []),
         );
     }
 }

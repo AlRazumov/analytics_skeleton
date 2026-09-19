@@ -8,6 +8,7 @@ namespace App\Core\Widgets\DTO;
  * (в процентах, как KpiCardData::$deltaPercent). Если базового снэпшота
  * нет — baseValue/deltaAbs/deltaPct = null; если база равна 0 —
  * deltaPct = null (делить не на что), deltaAbs считается.
+ * valueMeta — value_meta снэпшота текущего периода (пустой массив, если нет).
  */
 final readonly class MetricComparisonRow
 {
@@ -18,13 +19,14 @@ final readonly class MetricComparisonRow
         public ?float $baseValue,
         public ?float $deltaAbs,
         public ?float $deltaPct,
+        public array $valueMeta = [],
     ) {}
 
-    public static function of(string $entityType, string $entityId, float $value, ?float $baseValue): self
+    public static function of(string $entityType, string $entityId, float $value, ?float $baseValue, array $valueMeta = []): self
     {
         $deltaAbs = $baseValue === null ? null : $value - $baseValue;
         $deltaPct = $baseValue === null || $baseValue == 0.0 ? null : $deltaAbs / abs($baseValue) * 100;
 
-        return new self($entityType, $entityId, $value, $baseValue, $deltaAbs, $deltaPct);
+        return new self($entityType, $entityId, $value, $baseValue, $deltaAbs, $deltaPct, $valueMeta);
     }
 }

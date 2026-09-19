@@ -177,3 +177,93 @@ it('works for other granularities', function () {
     expect($row->baseValue)->toBe(10.0)
         ->and(Period::fromKey('quarter:2026-Q1')->granularity)->toBe(PeriodGranularity::Quarter);
 });
+
+// --- фильтр по value, count, latestPeriod (этап 10) ---
+
+function topFiltered(?float $min, ?float $max, int $limit = 100, Direction $dir = Direction::Asc): array
+{
+    return array_map(
+        fn ($r) => $r->entityId,
+        (new EloquentMetricsComparisonRepository)->top('revenue', 'product', Period::fromKey('month:2026-08'), $limit, RankBy::Value, $dir, null, $min, $max),
+    );
+}
+
+it('filters top by value with inclusive bounds', function () {
+    seedMetric(['month:2026-08' => ['a' => 10.0, 'b' => 20.0, 'c' => 30.0, 'd' => 40.0]]);
+
+    expect(topFiltered(20.0, 30.0))->toBe(['b', 'c'])
+        ->and(topFiltered(20.0, null))->toBe(['b', 'c', 'd'])
+        ->and(topFiltered(null, 20.0))->toBe(['a', 'b'])
+        ->and(topFiltered(null, null))->toBe(['a', 'b', 'c', 'd'])
+        ->and(topFiltered(25.0, 26.0))->toBe([])
+        ->and(topFiltered(30.0, 30.0))->toBe(['c']);
+});
+
+it('applies the filter before the limit', function () {
+    seedMetric(['month:2026-08' => ['a' => 10.0, 'b' => 20.0, 'c' => 30.0, 'd' => 40.0]]);
+
+    expect(topFiltered(20.0, null, 2, Direction::Desc))->toBe(['d', 'c']);
+});
+
+it('filters by the value of the current period, not of the base', function () {
+    seedMetric(['month:2026-07' => ['a' => 500.0, 'b' => 1.0], 'month:2026-08' => ['a' => 10.0, 'b' => 20.0]]);
+
+    $rows = (new EloquentMetricsComparisonRepository)->top(
+        'revenue', 'product', Period::fromKey('month:2026-08'), 10, RankBy::Value, Direction::Asc, ComparisonBase::Previous, 15.0, null,
+    );
+
+    expect(array_map(fn ($r) => $r->entityId, $rows))->toBe(['b'])
+        ->and($rows[0]->baseValue)->toBe(1.0);
+});
+
+it('rejects minValue greater than maxValue in top and count', function () {
+    $repo = new EloquentMetricsComparisonRepository;
+    $august = Period::fromKey('month:2026-08');
+
+    expect(fn () => $repo->top('revenue', 'product', $august, 5, minValue: 10.0, maxValue: 5.0))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => $repo->count('revenue', 'product', $august, 10.0, 5.0))->toThrow(InvalidArgumentException::class);
+});
+
+it('counts consistently with top without limit', function () {
+    seedMetric([
+        'month:2026-08' => ['a' => 10.0, 'b' => 20.0, 'c' => 30.0, 'd' => 40.0],
+        'month:2026-07' => ['e' => 25.0],
+    ]);
+    seedMetric(['month:2026-08' => ['z' => 25.0]], 'other_metric');
+    seedMetric(['month:2026-08' => ['w' => 25.0]], 'revenue', 'warehouse');
+    $repo = new EloquentMetricsComparisonRepository;
+    $august = Period::fromKey('month:2026-08');
+
+    foreach ([[null, null], [20.0, 30.0], [20.0, null], [null, 20.0], [25.0, 26.0], [30.0, 30.0]] as [$min, $max]) {
+        expect($repo->count('revenue', 'product', $august, $min, $max))->toBe(count(topFiltered($min, $max, 1000)));
+    }
+    expect($repo->count('revenue', 'product', $august))->toBe(4)
+        ->and($repo->count('revenue', 'product', Period::fromKey('month:2026-06')))->toBe(0);
+});
+
+it('carries value_meta on top rows', function () {
+    (new EloquentMetricsSnapshotWriter)->write([
+        new MetricsSnapshotRecord('product', 'a', 'revenue', 5.0, 'month:2026-08', ['stock_qty' => 7.5, 'flag' => true]),
+        new MetricsSnapshotRecord('product', 'b', 'revenue', 6.0, 'month:2026-08'),
+    ]);
+
+    $rows = (new EloquentMetricsComparisonRepository)->top('revenue', 'product', Period::fromKey('month:2026-08'), 5, dir: Direction::Asc);
+
+    expect($rows[0]->valueMeta)->toEqual(['stock_qty' => 7.5, 'flag' => true])
+        ->and($rows[1]->valueMeta)->toBe([]);
+});
+
+it('finds the latest period of a metric without using the current time', function () {
+    $repo = new EloquentMetricsComparisonRepository;
+
+    expect($repo->latestPeriod('revenue', PeriodGranularity::Month))->toBeNull();
+
+    seedMetric(['month:2026-03' => ['a' => 1.0], 'month:2026-08' => ['a' => 1.0], 'month:2025-12' => ['a' => 1.0]]);
+    seedMetric(['month:2027-01' => ['a' => 1.0]], 'other_metric');
+    seedMetric(['day:2026-09-15' => ['a' => 1.0], 'year:2030' => ['a' => 1.0]]);
+
+    expect($repo->latestPeriod('revenue', PeriodGranularity::Month)->key())->toBe('month:2026-08')
+        ->and($repo->latestPeriod('revenue', PeriodGranularity::Day)->key())->toBe('day:2026-09-15')
+        ->and($repo->latestPeriod('revenue', PeriodGranularity::Week))->toBeNull()
+        ->and($repo->latestPeriod('missing', PeriodGranularity::Month))->toBeNull();
+});
