@@ -156,3 +156,27 @@ it('computes both stock metrics through the service when capabilities are presen
 
     expect($keys)->toContain('days_since_last_sale')->toContain('days_of_stock')->toContain('turnover');
 });
+
+it('flags the same products for a single month (August) as for the whole year, dead products included', function (int $seed) {
+    $adapter = new MockAdapter(MockDataProfile::Small, $seed);
+    $calc = new DeadStockCalculator(90);
+    $august = new DateRange(new DateTimeImmutable('2026-08-01'), new DateTimeImmutable('2026-08-31'));
+
+    $single = collect($calc->calculate($adapter, $august))->keyBy('entityId');
+    $year = collect($calc->calculate($adapter, wholeHistory($adapter)))->where('period', 'month:2026-08')->keyBy('entityId');
+
+    $flags = fn ($rows) => $rows->filter(fn ($r) => $r->value >= 90)->keys()->sort()->values()->all();
+
+    expect($single)->toHaveCount($year->count())
+        ->and($flags($single))->toBe($flags($year))
+        ->and($flags($single))->toBe(collect(array_keys($adapter->manifest()->deadProducts))->sort()->values()->all());
+
+    // Где последняя продажа видна в lookback, значения идентичны; иначе — нижняя граница.
+    foreach ($single as $id => $row) {
+        if (! isset($row->valueMeta['no_sales_in_lookback'])) {
+            expect($row->value)->toBe($year[$id]->value);
+        } else {
+            expect($row->value)->toBeGreaterThanOrEqual(90.0);
+        }
+    }
+})->with([1, 2, 3]);

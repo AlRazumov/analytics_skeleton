@@ -18,14 +18,19 @@ use DateTimeImmutable;
  * value_meta только для справки, флага в БД нет). Момента "сейчас" метрика
  * не знает: результат зависит только от адаптера и диапазона.
  *
- * «Доступная история» — движения ЗАПРОШЕННОГО диапазона: если в нём у
- * товара не было продаж до asOf, значение = дней от начала диапазона
- * до asOf, value_meta.no_sales_in_history = true (продажи до начала
- * диапазона метрика не видит — для неликвидов берите диапазон не короче
- * порога). Остаток: fetchStock(начало диапазона − 1 день) плюс движения
- * диапазона (все типы), суммарно по складам. Движения читаются одним
- * потоком; в памяти — по товару и месяцу (сумма движений и дата
- * последней продажи), а не вся история. Порядок движений не важен.
+ * Lookback: движения читаются с (начало диапазона − dead_stock_days),
+ * поэтому расчёт за один месяц видит продажи за предыдущие ~порог дней и
+ * даёт те же значения (в части «value >= порога»), что расчёт за более
+ * широкий диапазон. Снэпшоты пишутся только за месяцы запрошенного
+ * диапазона. Если в расширенном окне до asOf продаж нет, value = дней от
+ * НАЧАЛА расширенного окна до asOf — это НИЖНЯЯ ГРАНИЦА (реальная
+ * последняя продажа старше), value_meta.no_sales_in_lookback = true;
+ * такое значение всегда >= порога.
+ *
+ * Остаток: fetchStock(начало расширенного окна − 1 день) плюс движения
+ * окна (все типы), суммарно по складам. Движения читаются одним потоком;
+ * в памяти — по товару и месяцу (сумма движений и дата последней
+ * продажи), а не вся история. Порядок движений не важен.
  *
  * Требует capabilities StockMovements и StockSnapshots (проверяет
  * MetricsCalculationService).
@@ -47,15 +52,16 @@ final class DeadStockCalculator
     {
         $rangeStart = new DateTimeImmutable($period->start->format('Y-m-d'));
         $rangeEnd = new DateTimeImmutable($period->end->format('Y-m-d'));
+        $lookbackStart = $rangeStart->modify('-'.$this->thresholdDays.' days');
 
         $stock = [];
-        foreach ($adapter->fetchStock($rangeStart->modify('-1 day')) as $balance) {
+        foreach ($adapter->fetchStock($lookbackStart->modify('-1 day')) as $balance) {
             $stock[$balance->productId] = ($stock[$balance->productId] ?? 0.0) + $balance->quantity;
         }
 
         $deltaByMonth = [];
         $lastSaleByMonth = [];
-        foreach ($adapter->fetchStockMovements($period) as $movement) {
+        foreach ($adapter->fetchStockMovements(new DateRange($lookbackStart, $rangeEnd)) as $movement) {
             $month = $movement->date->format('Y-m');
             $deltaByMonth[$movement->productId][$month] = ($deltaByMonth[$movement->productId][$month] ?? 0.0) + $movement->quantity;
 
@@ -72,7 +78,7 @@ final class DeadStockCalculator
 
         $records = [];
         $lastSale = [];
-        foreach (Months::in($rangeStart, $rangeEnd) as $month) {
+        foreach (Months::in($lookbackStart, $rangeEnd) as $month) {
             $asOf = min($month->end, $rangeEnd);
             $monthKey = $month->start->format('Y-m');
 
@@ -82,7 +88,8 @@ final class DeadStockCalculator
                     $lastSale[$productId] = $lastSaleByMonth[$productId][$monthKey];
                 }
 
-                if ($stock[$productId] <= self::EPSILON) {
+                // Месяцы lookback только накапливают остаток и последнюю продажу.
+                if ($month->end < $rangeStart || $stock[$productId] <= self::EPSILON) {
                     continue;
                 }
 
@@ -90,8 +97,8 @@ final class DeadStockCalculator
                 if (isset($lastSale[$productId])) {
                     $since = new DateTimeImmutable($lastSale[$productId]);
                 } else {
-                    $since = $rangeStart;
-                    $meta['no_sales_in_history'] = true;
+                    $since = $lookbackStart;
+                    $meta['no_sales_in_lookback'] = true;
                 }
 
                 $records[] = new MetricsSnapshotRecord(
