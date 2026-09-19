@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
+use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
+use App\Repositories\EloquentMetricsComparisonRepository;
 use App\Repositories\EloquentMetricsSnapshotRepository;
 use App\Repositories\EloquentMetricsSnapshotWriter;
 use Illuminate\Support\ServiceProvider;
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(MetricsSnapshotRepository::class, EloquentMetricsSnapshotRepository::class);
         $this->app->bind(MetricsSnapshotWriter::class, EloquentMetricsSnapshotWriter::class);
+        $this->app->bind(MetricsComparisonRepository::class, EloquentMetricsComparisonRepository::class);
 
         // Пороги метрик остатков живут в config/analytics.php, а core
         // о Laravel-конфиге не знает — передаём значения конструктором.
