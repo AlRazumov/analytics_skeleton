@@ -9,6 +9,7 @@ final readonly class StockoutRiskRow
         public string $productId,
         public string $productName,
         public string $warehouseId,
+        public string $warehouseName,
         public ?float $stockQty,
         public ?float $dailyRate,
         public float $daysOfStock,

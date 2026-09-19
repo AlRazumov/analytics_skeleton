@@ -1,16 +1,19 @@
 <?php
 
-use App\Adapters\AdapterProductNameResolver;
 use App\Adapters\Mock\MockDataProfile;
 use App\Adapters\MockAdapter;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\RevenueByPeriodCalculator;
+use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Staging\StagingProduct;
+use App\Core\Staging\StagingWarehouse;
 use App\Core\Widgets\Contracts\ProductNameResolver;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use App\Models\User;
 use App\Repositories\EloquentMetricsSnapshotWriter;
+use App\Sync\ReferenceSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -28,7 +31,8 @@ function seedFromMock(int $seed): MockAdapter
     $writer->write((new DeadStockCalculator(90))->calculate($adapter, $range));
     $writer->write((new DaysOfStockCalculator(28, 7))->calculate($adapter, $range));
 
-    app()->bind(ProductNameResolver::class, fn () => new AdapterProductNameResolver($adapter));
+    // Названия страницы берут из справочника в БД — наполняем его тем же адаптером.
+    app(ReferenceSyncService::class)->sync($adapter);
 
     return $adapter;
 }
@@ -312,4 +316,72 @@ it('does not grow the number of SQL queries with the number of rows', function (
     [$many, $calls] = $count(40);
 
     expect($many)->toBe($few)->and($calls)->toBeGreaterThan(0);
+});
+
+/** Адаптер, падающий на любом fetch*: веб-запросы страниц к источнику обращаться не должны. */
+function throwingAdapter(): DataSourceAdapter
+{
+    return new class implements DataSourceAdapter
+    {
+        public function fetchDeals(DateRange $period): iterable
+        {
+            throw new RuntimeException('adapter used: fetchDeals');
+        }
+
+        public function fetchProducts(): iterable
+        {
+            throw new RuntimeException('adapter used: fetchProducts');
+        }
+
+        public function fetchWarehouses(): iterable
+        {
+            throw new RuntimeException('adapter used: fetchWarehouses');
+        }
+
+        public function fetchStockMovements(DateRange $period): iterable
+        {
+            throw new RuntimeException('adapter used: fetchStockMovements');
+        }
+
+        public function fetchStock(?DateTimeImmutable $asOf = null): iterable
+        {
+            throw new RuntimeException('adapter used: fetchStock');
+        }
+
+        public function capabilities(): array
+        {
+            return [];
+        }
+    };
+}
+
+it('renders the pages with an adapter that throws on every fetch', function () {
+    seedFromMock(1);
+    app()->instance(DataSourceAdapter::class, throwingAdapter());
+
+    foreach (['/dashboards/stock', '/dashboards/top-products'] as $path) {
+        $this->get($path)->assertOk()->assertSee('Product ');
+    }
+});
+
+it('shows warehouse names from the reference with an id fallback, and escapes them', function () {
+    fakeNames(['p1' => 'Товар']);
+    StagingWarehouse::create(['external_id' => 'w1', 'name' => '<i>Главный</i> склад', 'synced_at' => now()]);
+    seedRaw('days_of_stock', 'product_warehouse', 'month:2026-08', ['p1:w1' => 2, 'p1:w2' => 3], [
+        'p1:w1' => ['stock_qty' => 1, 'daily_rate' => 1], 'p1:w2' => ['stock_qty' => 1, 'daily_rate' => 1],
+    ]);
+
+    $response = $this->get('/dashboards/stock')->assertOk();
+
+    $response->assertSee('&lt;i&gt;Главный&lt;/i&gt; склад', false)->assertDontSee('<i>Главный</i>', false)
+        ->assertSee('<td>w2</td>', false);
+});
+
+it('shows a product name from the reference, falls back to the id, and escapes markup', function () {
+    StagingProduct::create(['external_id' => 'p1', 'name' => '<b>Жирный</b> товар', 'synced_at' => now()]);
+    seedRaw('revenue', 'product', 'month:2026-08', ['p1' => 10, 'p-unknown' => 5]);
+
+    $this->get('/dashboards/top-products')->assertOk()
+        ->assertSee('&lt;b&gt;Жирный&lt;/b&gt; товар', false)->assertDontSee('<b>Жирный</b>', false)
+        ->assertSee('p-unknown');
 });

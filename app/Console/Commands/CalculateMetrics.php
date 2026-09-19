@@ -12,6 +12,7 @@ use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsSnapshot;
+use App\Sync\ReferenceSyncService;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
@@ -38,7 +39,7 @@ class CalculateMetrics extends Command
         [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
     ];
 
-    public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer, DataSourceAdapterFactory $factory): int
+    public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer, DataSourceAdapterFactory $factory, ReferenceSyncService $referenceSync): int
     {
         try {
             $profileOption = (string) $this->option('profile');
@@ -62,6 +63,10 @@ class CalculateMetrics extends Command
             $dateRange->start->format('Y-m-d'),
             $dateRange->end->format('Y-m-d'),
         ));
+
+        // Справочники — из того же адаптера, чтобы страницы показывали названия без обращений к источнику.
+        $counts = $referenceSync->sync($adapter);
+        $this->info("Справочники: товаров — {$counts['products']}, складов — {$counts['warehouses']}.");
 
         $records = $service->calculate($adapter, $dateRange);
 

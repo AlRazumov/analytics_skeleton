@@ -12,6 +12,7 @@ use App\Core\Domain\Enums\RankBy;
 use App\Core\Domain\Period;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\ProductNameResolver;
+use App\Core\Widgets\Contracts\WarehouseNameResolver;
 use App\Core\Widgets\DTO\DeadStockRow;
 use App\Core\Widgets\DTO\MetricComparisonRow;
 use App\Core\Widgets\DTO\RankedTableData;
@@ -34,6 +35,7 @@ final readonly class ProductTablesProvider
     public function __construct(
         private MetricsComparisonRepository $repository,
         private ProductNameResolver $names,
+        private WarehouseNameResolver $warehouseNames,
     ) {}
 
     /**
@@ -90,6 +92,7 @@ final readonly class ProductTablesProvider
 
         $pairs = array_map(static fn (MetricComparisonRow $r) => ProductWarehouseKey::parse($r->entityId), $rows);
         $names = $this->names->names(array_values(array_unique(array_column($pairs, 0))));
+        $warehouseNames = $this->warehouseNames->names(array_values(array_unique(array_column($pairs, 1))));
 
         $result = [];
         foreach ($rows as $i => $r) {
@@ -98,6 +101,7 @@ final readonly class ProductTablesProvider
                 $productId,
                 $names[$productId] ?? $productId,
                 $warehouseId,
+                $warehouseNames[$warehouseId] ?? $warehouseId,
                 self::metaFloat($r, 'stock_qty'),
                 self::metaFloat($r, 'daily_rate'),
                 $r->value,

@@ -23,7 +23,7 @@
                 @forelse ($data->rows as $row)
                     <tr>
                         <td>{{ $row->productName }}</td>
-                        <td>{{ $row->warehouseId }}</td>
+                        <td>{{ $row->warehouseName }}</td>
                         <td>@if ($row->stockQty === null)—@else{{ \App\Support\Format::num($row->stockQty) }}@endif</td>
                         <td>@if ($row->dailyRate === null)—@else{{ \App\Support\Format::num($row->dailyRate) }}@endif</td>
                         <td>{{ \App\Support\Format::num($row->daysOfStock, 1) }}</td>

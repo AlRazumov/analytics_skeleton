@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Adapters\AdapterProductNameResolver;
 use App\Adapters\DataSourceAdapterFactory;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
@@ -11,6 +10,9 @@ use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Core\Widgets\Contracts\ProductNameResolver;
+use App\Core\Widgets\Contracts\WarehouseNameResolver;
+use App\Repositories\DbProductNameResolver;
+use App\Repositories\DbWarehouseNameResolver;
 use App\Repositories\EloquentMetricsComparisonRepository;
 use App\Repositories\EloquentMetricsSnapshotRepository;
 use App\Repositories\EloquentMetricsSnapshotWriter;
@@ -30,8 +32,9 @@ class AppServiceProvider extends ServiceProvider
         // Источник данных выбирается конфигом (analytics.source).
         $this->app->bind(DataSourceAdapter::class, fn ($app) => $app->make(DataSourceAdapterFactory::class)->make());
 
-        // Временно (до части B): названия — из адаптера контейнера.
-        $this->app->bind(ProductNameResolver::class, fn ($app) => new AdapterProductNameResolver($app->make(DataSourceAdapter::class)));
+        // Названия для страниц — из справочников в БД (наполняются reference:sync).
+        $this->app->bind(ProductNameResolver::class, DbProductNameResolver::class);
+        $this->app->bind(WarehouseNameResolver::class, DbWarehouseNameResolver::class);
 
         // Пороги метрик остатков живут в config/analytics.php, а core
         // о Laravel-конфиге не знает — передаём значения конструктором.
