@@ -89,7 +89,7 @@ final class TurnoverCalculator
                     entityId: $productId,
                     metricKey: self::METRIC_KEY,
                     value: $turnover,
-                    period: $month,
+                    period: 'month:'.$month,
                     valueMeta: [],
                 );
             }

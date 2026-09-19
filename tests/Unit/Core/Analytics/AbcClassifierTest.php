@@ -28,7 +28,7 @@ it('classifies by cumulative revenue share with inclusive Pareto boundaries', fu
     foreach ($records as $record) {
         expect($record->entityType)->toBe('product');
         expect($record->metricKey)->toBe('abc_xyz_classification');
-        expect($record->period)->toBe('2026-01');
+        expect($record->period)->toBe('month:2026-01');
     }
 
     expect($byId['prod-1']->value)->toBe(800.0);

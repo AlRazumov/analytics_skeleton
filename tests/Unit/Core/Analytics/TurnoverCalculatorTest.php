@@ -16,9 +16,9 @@ it('computes turnover as unitsSold / avg(opening, closing) for a normal month', 
     $byPeriod = collect($records)->where('entityId', 'prod-1')->keyBy('period');
 
     // Январь: opening=0, closing=0+100-20=80, avgStock=(0+80)/2=40, unitsSold=20 -> 20/40.
-    expect($byPeriod['2026-01']->value)->toBe(20.0 / 40.0);
+    expect($byPeriod['month:2026-01']->value)->toBe(20.0 / 40.0);
     // Февраль: без движений, opening=closing=80, avgStock=80, unitsSold=0 -> 0/80=0 (записывается, не пропускается).
-    expect($byPeriod['2026-02']->value)->toBe(0.0);
+    expect($byPeriod['month:2026-02']->value)->toBe(0.0);
 
     foreach ($records as $record) {
         expect($record->entityType)->toBe('product');

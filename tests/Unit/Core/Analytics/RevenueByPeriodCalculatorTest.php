@@ -18,9 +18,9 @@ it('aggregates revenue by (product, month)', function () {
     $byKey = collect($records)->keyBy(fn ($r) => $r->entityId.'|'.$r->period);
 
     expect($records)->toHaveCount(3);
-    expect($byKey['prod-1|2026-01']->value)->toBe(150.0);
-    expect($byKey['prod-1|2026-02']->value)->toBe(30.0);
-    expect($byKey['prod-2|2026-01']->value)->toBe(20.0);
+    expect($byKey['prod-1|month:2026-01']->value)->toBe(150.0);
+    expect($byKey['prod-1|month:2026-02']->value)->toBe(30.0);
+    expect($byKey['prod-2|month:2026-01']->value)->toBe(20.0);
 
     foreach ($records as $record) {
         expect($record->entityType)->toBe('product');

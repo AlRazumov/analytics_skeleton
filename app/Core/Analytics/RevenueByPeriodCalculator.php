@@ -36,7 +36,7 @@ final class RevenueByPeriodCalculator
                     entityId: $productId,
                     metricKey: self::METRIC_KEY,
                     value: $value,
-                    period: $month,
+                    period: 'month:'.$month,
                     valueMeta: [],
                 );
             }

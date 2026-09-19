@@ -107,14 +107,15 @@ class CalculateMetrics extends Command
 
         $periods = [];
         while ($cursor <= $last) {
-            $periods[] = $cursor->format('Y-m');
+            $periods[] = $cursor->format('Y-m-d');
             $cursor = $cursor->modify('+1 month');
         }
 
         MetricsSnapshot::query()
             ->where('entity_type', 'product')
             ->whereIn('metric_key', self::METRIC_KEYS)
-            ->whereIn('period', $periods)
+            ->where('period_type', 'month')
+            ->whereIn('period_start', $periods)
             ->delete();
     }
 }

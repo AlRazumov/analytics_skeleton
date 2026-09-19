@@ -40,7 +40,7 @@ it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classificatio
     // задокументированный в mergeAbcXyz()): оба классификатора кладут
     // period = последний месяц периода, поэтому здесь это неразличимо,
     // но зафиксировано явно.
-    expect($byId['prod-1']->period)->toBe('2026-02');
+    expect($byId['prod-1']->period)->toBe('month:2026-02');
 });
 
 it('calls fetchDeals() and fetchStockMovements() exactly once per calculate(), not once per calculator', function () {
@@ -71,7 +71,7 @@ it('throws when ABC and XYZ records for the same entityId disagree on period', f
     // проверить defensive-ветку без переписывания самих
     // классификаторов на разную гранулярность.
     $abcRecords = [
-        new MetricsSnapshotRecord('product', 'prod-1', 'abc_xyz_classification', 700.0, '2026-02', ['abc_class' => 'A']),
+        new MetricsSnapshotRecord('product', 'prod-1', 'abc_xyz_classification', 700.0, 'month:2026-02', ['abc_class' => 'A']),
     ];
     $xyzRecords = [
         new MetricsSnapshotRecord('product', 'prod-1', 'abc_xyz_classification', 0.0, '2026-Q1', ['xyz_class' => 'X']),

@@ -97,7 +97,7 @@ final class XyzClassifier
                 entityId: $productId,
                 metricKey: self::METRIC_KEY,
                 value: $cv ?? 0.0,
-                period: $lastMonth,
+                period: 'month:'.$lastMonth,
                 valueMeta: ['xyz_class' => $xyzClass],
             );
         }

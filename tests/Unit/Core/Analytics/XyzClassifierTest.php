@@ -35,7 +35,7 @@ it('classifies stable demand as X, volatile demand as Z, and no-demand product a
     foreach ($records as $record) {
         expect($record->entityType)->toBe('product');
         expect($record->metricKey)->toBe('abc_xyz_classification');
-        expect($record->period)->toBe('2026-03');
+        expect($record->period)->toBe('month:2026-03');
     }
 });
 

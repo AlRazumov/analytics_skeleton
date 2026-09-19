@@ -71,7 +71,7 @@ final class AbcClassifier
                 entityId: $productId,
                 metricKey: self::METRIC_KEY,
                 value: $value,
-                period: $lastMonth,
+                period: 'month:'.$lastMonth,
                 valueMeta: ['abc_class' => $abcClass],
             );
         }
