@@ -2,7 +2,7 @@
 
 namespace App\Core\Widgets;
 
-use App\Core\Domain\Period;
+use App\Core\Domain\PeriodRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\DTO\KpiCardData;
 use App\Core\Widgets\DTO\LineChartData;
@@ -35,7 +35,7 @@ final readonly class WidgetDataProvider
         private MetricsSnapshotRepository $repository,
     ) {}
 
-    public function lineChart(string $entityType, string $metricKey, Period $period): LineChartData
+    public function lineChart(string $entityType, string $metricKey, PeriodRange $period): LineChartData
     {
         $points = $this->pointsFor($entityType, $metricKey, $period);
 
@@ -50,7 +50,7 @@ final readonly class WidgetDataProvider
      * по позиции точки — отдельный метод, а не флаг внутри lineChart,
      * потому что форма результата (две серии вместо одной) другая.
      */
-    public function lineChartYoY(string $entityType, string $metricKey, Period $period): LineChartData
+    public function lineChartYoY(string $entityType, string $metricKey, PeriodRange $period): LineChartData
     {
         $previous = $period->previousYear();
 
@@ -66,13 +66,13 @@ final readonly class WidgetDataProvider
         );
     }
 
-    public function table(string $entityType, string $metricKey, Period $period): TableData
+    public function table(string $entityType, string $metricKey, PeriodRange $period): TableData
     {
         $records = $this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys());
 
         $rows = [];
         foreach ($records as $record) {
-            $rows[] = [$record->entityId, $record->period, $record->value];
+            $rows[] = [$record->entityId, $this->displayLabel($record->period), $record->value];
         }
 
         return new TableData(
@@ -81,7 +81,7 @@ final readonly class WidgetDataProvider
         );
     }
 
-    public function kpiCard(string $entityType, string $metricKey, Period $period, ?string $unit = null): KpiCardData
+    public function kpiCard(string $entityType, string $metricKey, PeriodRange $period, ?string $unit = null): KpiCardData
     {
         $current = $this->sumFor($entityType, $metricKey, $period->keys());
 
@@ -155,7 +155,7 @@ final readonly class WidgetDataProvider
     /**
      * @return SeriesPoint[]
      */
-    private function pointsFor(string $entityType, string $metricKey, Period $period, ?Period $useLabelsFrom = null): array
+    private function pointsFor(string $entityType, string $metricKey, PeriodRange $period, ?PeriodRange $useLabelsFrom = null): array
     {
         $records = $this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys());
 
@@ -169,7 +169,7 @@ final readonly class WidgetDataProvider
 
         $points = [];
         foreach ($keys as $index => $key) {
-            $points[] = new SeriesPoint($labelKeys[$index] ?? $key, $byPeriod[$key] ?? 0.0);
+            $points[] = new SeriesPoint($this->displayLabel($labelKeys[$index] ?? $key), $byPeriod[$key] ?? 0.0);
         }
 
         return $points;
@@ -191,7 +191,7 @@ final readonly class WidgetDataProvider
      *
      * @return string[]
      */
-    private function precedingPeriodKeys(Period $period): array
+    private function precedingPeriodKeys(PeriodRange $period): array
     {
         $keys = $period->keys();
         $length = count($keys);
@@ -200,13 +200,19 @@ final readonly class WidgetDataProvider
         $precedingEnd = $period->start->modify("-1 {$unit}");
         $precedingStart = $precedingEnd->modify('-'.($length - 1)." {$unit}s");
 
-        return (new Period($precedingStart, $precedingEnd, $period->granularity))->keys();
+        return (new PeriodRange($precedingStart, $precedingEnd, $period->granularity))->keys();
     }
 
-    private function periodLabel(Period $period): string
+    private function periodLabel(PeriodRange $period): string
     {
         $keys = $period->keys();
 
-        return $keys[0] ?? $period->start->format('Y-m');
+        return $this->displayLabel($keys[0] ?? 'month:'.$period->start->format('Y-m'));
+    }
+
+    /** Ключ периода без префикса гранулярности ('month:2026-01' → '2026-01'). */
+    private function displayLabel(string $periodKey): string
+    {
+        return substr($periodKey, (int) strpos($periodKey, ':') + 1);
     }
 }

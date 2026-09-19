@@ -4,6 +4,9 @@ namespace App\Core\Domain\Enums;
 
 enum PeriodGranularity: string
 {
-    case Month = 'month';
     case Day = 'day';
+    case Week = 'week';
+    case Month = 'month';
+    case Quarter = 'quarter';
+    case Year = 'year';
 }

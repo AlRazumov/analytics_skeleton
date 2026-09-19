@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Dashboards;
 
 use App\Core\Domain\Enums\PeriodGranularity;
-use App\Core\Domain\Period;
+use App\Core\Domain\PeriodRange;
 use App\Core\Widgets\WidgetDataProvider;
 use App\Http\Controllers\Controller;
 use DateTimeImmutable;
@@ -18,7 +18,7 @@ class OverviewDashboardController extends Controller
 {
     public function __invoke(WidgetDataProvider $widgets): View
     {
-        $period = new Period(
+        $period = new PeriodRange(
             new DateTimeImmutable('2026-01-01'),
             new DateTimeImmutable('2026-06-30'),
             PeriodGranularity::Month,
