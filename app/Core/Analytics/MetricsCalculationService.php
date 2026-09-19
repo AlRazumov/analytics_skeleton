@@ -20,14 +20,19 @@ use RuntimeException;
  * без изменений (см. отчёт stage-04, требование "логика отделена от
  * команды").
  *
- * Единственное место, вызывающее DataSourceAdapter::fetchDeals() и
- * ::fetchStockMovements() — ровно по одному разу за calculate(), как и
- * декларирует докблок DataSourceAdapter ("каждый метод вызывается один
- * раз за прогон"). Раньше это нарушалось (fetchDeals() вызывался трижды
- * — независимо из RevenueByPeriodCalculator/AbcClassifier/XyzClassifier
- * — см. docs/roadmap.md и docs/reports/stage-04-report.md); теперь
- * калькуляторы получают уже готовые данные аргументом и сами адаптер не
- * трогают.
+ * Обращения к адаптеру. `fetchDeals()` и `fetchStockMovements()` для
+ * revenue/abc/xyz/turnover вызываются здесь ровно по одному разу за
+ * calculate(), а калькуляторы получают уже готовые данные аргументом
+ * (раньше fetchDeals() вызывался трижды — см. docs/roadmap.md и
+ * docs/reports/stage-04-report.md). Исключение — метрики остатков
+ * (DeadStockCalculator, DaysOfStockCalculator): им нужны остатки на
+ * разные даты и окна движений, поэтому они принимают сам адаптер и
+ * читают его сами — за один calculate() это ещё один вызов
+ * fetchStockMovements() и один fetchStock() у неликвидов (расширенное окно
+ * lookback) и по одному fetchStock() + fetchStockMovements() на каждый
+ * месяц диапазона у дней до обнуления. Эти метрики считаются, только если
+ * у адаптера есть StockMovements и StockSnapshots (иначе причина уходит в
+ * лог, без исключения).
  *
  * AbcClassifier и XyzClassifier независимо считают свою часть
  * классификации и каждый пишет только свою часть value_meta
