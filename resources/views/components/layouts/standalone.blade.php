@@ -1,11 +1,13 @@
-@props(['title' => 'Аналитика'])
+@props(['title' => 'Аналитика', 'guest' => false])
 <!doctype html>
 <html lang="ru">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} — Аналитика</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    @unless ($guest)
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    @endunless
     <style>
         * { box-sizing: border-box; }
         body {
@@ -46,6 +48,27 @@
             min-width: 2rem;
             min-height: 2rem;
         }
+        .header__logout {
+            background: none;
+            border: 1px solid #6b7280;
+            border-radius: 4px;
+            color: #d1d5db;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0.25rem 0.75rem;
+        }
+        .header__logout:hover { color: #fff; border-color: #fff; }
+        .login-card { max-width: 380px; margin: 3rem auto; }
+        .login-card label { display: block; margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
+        .login-card input[type=email], .login-card input[type=password] {
+            width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;
+        }
+        .login-card .remember { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
+        .login-card button[type=submit] {
+            margin-top: 1rem; width: 100%; padding: 0.6rem; border: 0; border-radius: 4px;
+            background: #1f2937; color: #fff; font-size: 1rem; cursor: pointer;
+        }
+        .form-error { color: crimson; font-size: 0.9rem; margin-top: 0.5rem; }
         .content {
             padding: 1.5rem;
             max-width: 1000px;
@@ -75,12 +98,20 @@
             станет зависеть от клиента/конфигурации — вынести в конфиг
             или view-composer, а не разрастать список тут.
         --}}
-        <nav class="header__nav">
-            <a href="{{ route('dashboards.overview') }}" @class(['is-active' => request()->routeIs('dashboards.overview')])>Обзор продаж</a>
-            <a href="{{ route('dashboards.abc-xyz') }}" @class(['is-active' => request()->routeIs('dashboards.abc-xyz')])>ABC/XYZ-анализ</a>
-        </nav>
-        {{-- Место под будущий блок пользователя (авторизация — вне рамок этапа 5) --}}
-        <div class="header__user-slot"></div>
+        @unless ($guest)
+            <nav class="header__nav">
+                <a href="{{ route('dashboards.overview') }}" @class(['is-active' => request()->routeIs('dashboards.overview')])>Обзор продаж</a>
+                <a href="{{ route('dashboards.abc-xyz') }}" @class(['is-active' => request()->routeIs('dashboards.abc-xyz')])>ABC/XYZ-анализ</a>
+            </nav>
+        @endunless
+        <div class="header__user-slot">
+            @auth
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="header__logout">Выйти</button>
+                </form>
+            @endauth
+        </div>
     </header>
 
     <main class="content">
