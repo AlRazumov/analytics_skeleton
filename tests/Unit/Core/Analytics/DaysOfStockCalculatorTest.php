@@ -93,6 +93,32 @@ it('excludes zero-stock days from the denominator', function () {
     expect(34 / 28)->toBeLessThan($records['p1:w1']->valueMeta['daily_rate']);
 });
 
+it('does not count sales of the arrival day (start-of-day stock 0) in the numerator', function () {
+    // Остатка нет до 20 марта; 20-го утром приход 100 и в тот же день продано 50 —
+    // это день с остатком на начало 0, его продажи в числитель не входят.
+    // Дальше 21–31 марта (11 дней) по 2 шт./день.
+    $moves = [
+        stockMove('2026-03-20', 'p1', 'w1', T::Receipt, 100),
+        stockMove('2026-03-20', 'p1', 'w1', T::Sale, -50),
+        ...dailySales('p1', 'w1', 2, '2026-03-21', '2026-03-31'),
+    ];
+    [$records] = daysOfStock($moves, []);
+
+    // Дней в наличии 11, продаж в них 22 → скорость 2 (а не 72/11 ≈ 6.5); остаток 100 − 50 − 22 = 28.
+    expect($records['p1:w1']->valueMeta)->toMatchArray(['in_stock_days' => 11, 'daily_rate' => 2.0, 'stock_qty' => 28.0])
+        ->and($records['p1:w1']->value)->toBe(14.0);
+});
+
+it('writes nothing when the only sales fell on a day with zero start-of-day stock', function () {
+    // Приход и продажа 20 марта (остаток на начало дня 0); дальше 11 дней в наличии без продаж.
+    [$records, $calc] = daysOfStock([
+        stockMove('2026-03-20', 'p1', 'w1', T::Receipt, 10),
+        stockMove('2026-03-20', 'p1', 'w1', T::Sale, -4),
+    ], []);
+
+    expect($records)->toBe([])->and($calc->lastSkipped)->toBe(['no_demand' => 1, 'too_few_in_stock_days' => 0]);
+});
+
 it('writes at exactly min_in_stock_days days with stock, skips below it and counts the skip', function () {
     // Остаток кончается после 7-й продажи (4–10 марта): дней с остатком на начало дня ровно 7.
     $seven = array_slice(dailySales('p1', 'w1', 1), 0, 7);

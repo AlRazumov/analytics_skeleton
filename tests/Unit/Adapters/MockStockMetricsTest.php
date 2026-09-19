@@ -68,7 +68,7 @@ it('gives days_of_stock equal to the manifest days_to_zero for near-zero product
     }
 })->with([MockDataProfile::Small, MockDataProfile::Medium]);
 
-it('estimates the sales rate of gap products better when zero-stock days are excluded', function () {
+it('recovers the baseline sales rate of gap products exactly (zero-stock and arrival days excluded)', function () {
     $adapter = new MockAdapter(MockDataProfile::Small, 1);
     $checked = 0;
 
@@ -102,8 +102,7 @@ it('estimates the sales rate of gap products better when zero-stock days are exc
             expect($baseline)->not->toBeNull()
                 ->and($record->valueMeta['in_stock_days'])->toBe(7)
                 ->and($naive)->toBeLessThan($baseline * 0.5)                       // наивный сильно занижает
-                ->and(abs($corrected - $baseline))->toBeLessThan(abs($naive - $baseline))
-                ->and($corrected)->toBeLessThan($baseline * 1.2);                    // остаточное завышение: день прихода
+                ->and($corrected)->toEqualWithDelta($baseline, 1e-6);                 // продажи дня прихода в числитель не входят
             $checked++;
         }
     }

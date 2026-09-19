@@ -15,27 +15,28 @@ use DateTimeImmutable;
  * entity_type='product_warehouse', entity_id = ProductWarehouseKey
  * ("<productId>:<warehouseId>"), metric_key='days_of_stock'.
  *
- *   спрос/день = сумма продаж (sale) в окне W дней, заканчивающемся на
- *                asOf / число дней окна, в которые остаток НА НАЧАЛО
- *                дня был > 0
+ *   спрос/день = сумма продаж (sale) за «дни в наличии» окна W дней,
+ *                заканчивающегося на asOf / число этих дней
  *   значение   = остаток на asOf / спрос/день
  *
- * Дни с нулевым остатком не входят в знаменатель, иначе провалы по
- * остатку занижали бы скорость продаж и завышали «дни до обнуления».
+ * «День в наличии» — день, в который остаток НА НАЧАЛО дня был > 0.
+ * Числитель и знаменатель берутся по одним и тем же дням: дни с
+ * нулевым остатком не входят в знаменатель, иначе провалы по остатку
+ * занижали бы скорость продаж и завышали «дни до обнуления», а
+ * продажи такого дня (например, дня прихода: партия пришла утром,
+ * остаток на начало дня 0) не входят в числитель, иначе скорость
+ * завышалась бы.
  * Остаток по дням окна: fetchStock(начало окна − 1 день) + движения
  * окна (все типы, только эта пара). Продажи вне окна и другие типы
  * спросом не считаются.
  *
- * Снэпшот НЕ пишется (а не 0 и не бесконечность), если спроса нет или
+ * Снэпшот НЕ пишется (а не 0 и не бесконечность), если спроса в дни в наличии нет или
  * дней с остатком в окне меньше min_in_stock_days; счётчики пропусков
  * доступны в $lastSkipped. Остаток на asOf = 0 при наличии спроса даёт 0.
  * value_meta: stock_qty, daily_rate, in_stock_days, window_days.
  *
  * ОГРАНИЧЕНИЕ: сезонность не учитывается — окно короткое, скорость
- * считается плоской. Побочный эффект определения «остаток на начало
- * дня»: в день прихода (приёмка утром, остаток на начало дня 0)
- * продажи этого дня попадают в числитель, а день — не в знаменатель,
- * поэтому сразу после провала скорость слегка завышена.
+ * считается плоской.
  *
  * Читает окно отдельным вызовом fetchStock/fetchStockMovements на
  * каждый месяц (потоково; в памяти — движения одного окна).
@@ -77,7 +78,7 @@ final class DaysOfStockCalculator
                 $opening[ProductWarehouseKey::make($balance->productId, $balance->warehouseId)] = $balance->quantity;
             }
 
-            $sales = [];
+            $saleByDay = [];
             $deltaByDay = [];
             foreach ($adapter->fetchStockMovements($window) as $movement) {
                 $key = ProductWarehouseKey::make($movement->productId, $movement->warehouseId);
@@ -88,29 +89,25 @@ final class DaysOfStockCalculator
 
                 $deltaByDay[$key][$dayIndex] = ($deltaByDay[$key][$dayIndex] ?? 0.0) + $movement->quantity;
                 if ($movement->type === StockMovementType::Sale) {
-                    $sales[$key] = ($sales[$key] ?? 0.0) - $movement->quantity;
+                    $saleByDay[$key][$dayIndex] = ($saleByDay[$key][$dayIndex] ?? 0.0) - $movement->quantity;
                 }
             }
 
             foreach ($opening as $key => $quantity) {
-                if ($quantity > self::EPSILON && ! isset($sales[$key])) {
+                if ($quantity > self::EPSILON && ! isset($saleByDay[$key])) {
                     $this->lastSkipped['no_demand']++;
                 }
             }
 
-            ksort($sales);
-            foreach ($sales as $key => $soldTotal) {
-                if ($soldTotal <= self::EPSILON) {
-                    $this->lastSkipped['no_demand']++;
-
-                    continue;
-                }
-
+            ksort($saleByDay);
+            foreach ($saleByDay as $key => $salesByDay) {
                 $stock = $opening[$key] ?? 0.0;
                 $inStockDays = 0;
+                $soldInStockDays = 0.0;
                 for ($day = 0; $day < $this->windowDays; $day++) {
                     if ($stock > self::EPSILON) {
                         $inStockDays++;
+                        $soldInStockDays += $salesByDay[$day] ?? 0.0;
                     }
                     $stock += $deltaByDay[$key][$day] ?? 0.0;
                 }
@@ -121,7 +118,13 @@ final class DaysOfStockCalculator
                     continue;
                 }
 
-                $dailyRate = $soldTotal / $inStockDays;
+                if ($soldInStockDays <= self::EPSILON) {
+                    $this->lastSkipped['no_demand']++;
+
+                    continue;
+                }
+
+                $dailyRate = $soldInStockDays / $inStockDays;
                 $stockAtEnd = max(0.0, $stock);
 
                 $records[] = new MetricsSnapshotRecord(
