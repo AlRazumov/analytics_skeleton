@@ -18,12 +18,13 @@
 | 07 | Метрики остатков: неликвиды (days_since_last_sale), дни до обнуления (days_of_stock) | stages/stage-07-stock-metrics.md | done | 06 |
 | 08 | Правки метрик остатков, сравнение периодов, топ/анти-топ | stages/stage-08-period-comparison-top.md | done (см. reports/stage-08-period-comparison.md) | 06, 07 |
 | 09 | Оборачиваемость: стартовый остаток; аутентификация standalone-части (Fortify) | stages/stage-09-turnover-and-auth.md | done (см. reports/stage-09-turnover-and-auth.md) | 06, 07, 08 |
-| 10 | Bitrix24Adapter | — | not planned (отложен на неопределённый срок, ждёт клиента) | 06 |
-| 11 | OneCAdapter | — | not planned (отложен на неопределённый срок; заказчик тянет время, может не состояться) | 06 |
+| 10 | Виджеты новых метрик (неликвиды, риск дефицита, топ/анти-топ), флаги функциональности, гигиена аутентификации | stages/stage-10-widgets-flags-hygiene.md | in progress | 07, 08, 09 |
+| 11 | Bitrix24Adapter | — | not planned (отложен на неопределённый срок, ждёт клиента) | 06 |
+| 12 | OneCAdapter | — | not planned (отложен на неопределённый срок; заказчик тянет время, может не состояться) | 06 |
 
 ## TODO before real adapters
 
-Пункты, которые нужно пересмотреть перед стартом этапов 10/11 (реальные,
+Пункты, которые нужно пересмотреть перед стартом этапов 11/12 (реальные,
 нестейтлес-адаптеры), а не при их планировании задним числом:
 
 - ✅ done: пересмотреть `MetricsCalculationService` (тройной вызов
