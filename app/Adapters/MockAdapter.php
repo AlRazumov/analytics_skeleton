@@ -143,43 +143,80 @@ final class MockAdapter implements DataSourceAdapter
     }
 
     /**
-     * Как и остальные fetch*, отдаёт данные только в окне истории
-     * (historyStart()..historyEnd() включительно по дате). Ограничивается
-     * лишь выдача: генерация (поток случайных чисел, счётчик id) идёт по
-     * запрошенному периоду как раньше, поэтому значения внутри окна не
-     * меняются.
+     * Сделки за $period (границы включительно по дате), только в окне
+     * истории (historyStart()..historyEnd()), как и у остальных fetch*.
+     *
+     * Содержимое сделки (id, товар, сумма, момент) зависит только от seed
+     * и календарного месяца сделки: у каждого месяца окна свой
+     * детерминированный генератор случайных чисел (см. dealsOfMonth), id —
+     * сквозной номер от первого месяца окна. Запрошенный диапазон только
+     * выбирает, какие из этих сделок вернуть, поэтому выручка одного месяца
+     * одинакова при любом периоде запроса. Порядок — по месяцам, внутри
+     * месяца в порядке генерации (не по дате).
      */
     public function fetchDeals(DateRange $period): iterable
     {
-        $windowStart = $this->historyStart;
-        $windowEnd = $this->historyEnd()->setTime(23, 59, 59);
-        $randomizer = $this->randomizerFor('deals');
-        $productCount = $this->profile->productCount();
-        $dealsPerMonth = $this->profile->dealsPerMonth();
+        $from = max($this->dayOf($period->start), $this->historyStart->format('Y-m-d'));
+        $to = min($this->dayOf($period->end), $this->historyEnd()->format('Y-m-d'));
+        if ($from > $to) {
+            return;
+        }
+
+        $firstMonth = new DateTimeImmutable($this->historyStart->format('Y-m-01'));
+        $wantedFirst = new DateTimeImmutable(substr($from, 0, 7).'-01');
+        $wantedLast = new DateTimeImmutable(substr($to, 0, 7).'-01');
+
+        // Номер первой сделки месяца — число сделок во всех предыдущих месяцах окна.
         $counter = 0;
+        for ($month = $firstMonth; $month < $wantedFirst; $month = $month->modify('+1 month')) {
+            $counter += $this->dealsInMonth($month);
+        }
 
-        foreach ($this->monthsIn($period) as [$monthStart, $rangeStart, $rangeEnd, $proportion]) {
-            $seasonalMultiplier = $this->seasonalMultiplier((int) $monthStart->format('n'));
-            $count = (int) round($dealsPerMonth * $proportion * $seasonalMultiplier);
-
-            for ($i = 0; $i < $count; $i++) {
-                $counter++;
-                $productIndex = $randomizer->getInt(1, $productCount);
-                // Сумма сделки: условный диапазон 5.00-500.00, ориентировочно.
-                $amount = $randomizer->getInt(500, 50000) / 100;
-
-                $deal = new Deal(
-                    id: "deal-{$counter}",
-                    productId: "prod-{$productIndex}",
-                    amount: $amount,
-                    date: $this->randomDateBetween($randomizer, $rangeStart, $rangeEnd),
-                );
-
-                if ($deal->date >= $windowStart && $deal->date <= $windowEnd) {
+        for ($month = $wantedFirst; $month <= $wantedLast; $month = $month->modify('+1 month')) {
+            foreach ($this->dealsOfMonth($month, $counter) as $deal) {
+                $day = $deal->date->format('Y-m-d');
+                if ($day >= $from && $day <= $to) {
                     yield $deal;
                 }
             }
+            $counter += $this->dealsInMonth($month);
         }
+    }
+
+    private function dealsInMonth(DateTimeImmutable $monthStart): int
+    {
+        return (int) round($this->profile->dealsPerMonth() * $this->seasonalMultiplier((int) $monthStart->format('n')));
+    }
+
+    /**
+     * Все сделки календарного месяца (без фильтра по окну и запросу).
+     *
+     * @return Generator<Deal>
+     */
+    private function dealsOfMonth(DateTimeImmutable $monthStart, int $firstNumber): Generator
+    {
+        $randomizer = $this->randomizerFor('deals:'.$monthStart->format('Y-m'));
+        $monthEnd = $monthStart->modify('+1 month -1 second');
+        $productCount = $this->profile->productCount();
+        $count = $this->dealsInMonth($monthStart);
+
+        for ($i = 1; $i <= $count; $i++) {
+            $productIndex = $randomizer->getInt(1, $productCount);
+            // Сумма сделки: условный диапазон 5.00-500.00, ориентировочно.
+            $amount = $randomizer->getInt(500, 50000) / 100;
+
+            yield new Deal(
+                id: 'deal-'.($firstNumber + $i),
+                productId: "prod-{$productIndex}",
+                amount: $amount,
+                date: $this->randomDateBetween($randomizer, $monthStart, $monthEnd),
+            );
+        }
+    }
+
+    private function dayOf(DateTimeImmutable $date): string
+    {
+        return $date->format('Y-m-d');
     }
 
     /**
@@ -558,32 +595,6 @@ final class MockAdapter implements DataSourceAdapter
         }
 
         return $multiplier;
-    }
-
-    /**
-     * Разбивает период на месяцы, пересекающиеся с ним.
-     *
-     * @return Generator<array{DateTimeImmutable, DateTimeImmutable, DateTimeImmutable, float}>
-     *                                                                                          [начало месяца, начало пересечения с периодом, конец
-     *                                                                                          пересечения с периодом, доля месяца, попавшая в период]
-     */
-    private function monthsIn(DateRange $period): Generator
-    {
-        $cursor = new DateTimeImmutable($period->start->format('Y-m-01'));
-        $lastMonth = new DateTimeImmutable($period->end->format('Y-m-01'));
-
-        while ($cursor <= $lastMonth) {
-            $daysInMonth = (int) $cursor->format('t');
-            $monthEnd = $cursor->modify('+1 month -1 second');
-            $rangeStart = $cursor > $period->start ? $cursor : $period->start;
-            $rangeEnd = $monthEnd < $period->end ? $monthEnd : $period->end;
-            $daysInRange = max(1, $rangeStart->diff($rangeEnd)->days + 1);
-            $proportion = min(1.0, $daysInRange / $daysInMonth);
-
-            yield [$cursor, $rangeStart, $rangeEnd, $proportion];
-
-            $cursor = $cursor->modify('+1 month');
-        }
     }
 
     private function randomDateBetween(Randomizer $randomizer, DateTimeImmutable $start, DateTimeImmutable $end): DateTimeImmutable

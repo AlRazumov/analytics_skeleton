@@ -51,14 +51,16 @@ it('keeps deals on the first and last day of the window', function () {
     }
 });
 
-it('does not change the deals inside the window (reference from before the clamp)', function () {
+// Эталон переснят на этапе 13 (детерминизм сделок по месяцам). Было (этап 11–12):
+// Small 2660 / 667594.43 / 14427abb…0220, Medium 133000 / 33693948.73 / e972fecb…f5450c.
+it('matches the reference fingerprint of the deals inside the window', function () {
     $small = dealsInWindow(new MockAdapter(MockDataProfile::Small, 1));
     $medium = dealsInWindow(new MockAdapter(MockDataProfile::Medium, 1));
 
     expect(count($small))->toBe(2660)
-        ->and(round(array_sum(array_map(fn ($d) => $d->amount, $small)), 2))->toBe(667594.43)
-        ->and(dealsFingerprint($small))->toBe('14427abb8b8bd9a4079ca1327f5d4f42a5ff98e8076751ef160dbaa823020220')
+        ->and(round(array_sum(array_map(fn ($d) => $d->amount, $small)), 2))->toBe(673591.97)
+        ->and(dealsFingerprint($small))->toBe('19b9dfb71d06b2ffc6745841fb0eb68bd51168ea5b1955642bb70411ce0284b9')
         ->and(count($medium))->toBe(133000)
-        ->and(round(array_sum(array_map(fn ($d) => $d->amount, $medium)), 2))->toBe(33693948.73)
-        ->and(dealsFingerprint($medium))->toBe('e972fecb7c8ddd9eca39bfb2b6038be258cac19537ec1f15fe31356d70f5450c');
+        ->and(round(array_sum(array_map(fn ($d) => $d->amount, $medium)), 2))->toBe(33558933.48)
+        ->and(dealsFingerprint($medium))->toBe('cc47982e16e777ad1b83ebc2de9184eb6f8a572c2153b87748347443ffac1063');
 })->group('slow');
