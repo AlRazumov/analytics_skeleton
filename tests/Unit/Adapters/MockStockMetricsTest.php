@@ -29,7 +29,7 @@ it('flags exactly the manifest dead products as dead stock at historyEnd', funct
 
     expect($dead)->not->toBeEmpty();
     foreach ($dead as $id) {
-        expect($lastMonth[$id]->value)->toBeGreaterThanOrEqual($manifest->deadDays)
+        expect($lastMonth[$id]->value)->toBeGreaterThanOrEqual($manifest->deadAges[$id])
             ->and($lastMonth[$id]->valueMeta['stock_qty'])->toBeGreaterThan(0.0);
     }
     // Ложных срабатываний на этих данных нет (см. отчёт); если появятся — список в сообщении.

@@ -53,6 +53,12 @@ final class MockAdapter implements DataSourceAdapter
     /** Конец окна истории движений по умолчанию (фиксирован ради детерминированности). */
     private const HISTORY_END = '2026-08-31';
 
+    /** Порог неликвида по умолчанию: мёртвый товар не моложе. */
+    private const MIN_DEAD_AGE = 90;
+
+    /** Сколько дней обычной истории должно быть до последней продажи мёртвого товара. */
+    private const MIN_HISTORY_BEFORE_DEAD = 90;
+
     private const GAP_LENGTH = 21;
 
     private const GAP_RATE = 3;
@@ -290,8 +296,11 @@ final class MockAdapter implements DataSourceAdapter
         $warehouse = $this->warehouseIds[0];
 
         $dead = [];
-        foreach ($ids('dead') as $id) {
-            $dead[$id] = $date($this->historyDays - 1 - $this->scenarios->deadDays);
+        $deadAges = [];
+        foreach ($this->productIndexesOf('dead') as $k => $i) {
+            $age = $this->deadAgeFor($k);
+            $dead["prod-{$i}"] = $date($this->historyDays - 1 - $age);
+            $deadAges["prod-{$i}"] = $age;
         }
 
         $nearZero = [];
@@ -331,7 +340,7 @@ final class MockAdapter implements DataSourceAdapter
             seasonPeakMonth: 12,
             seasonTroughMonth: 6,
             deadProducts: $dead,
-            deadDays: $this->scenarios->deadDays,
+            deadAges: $deadAges,
             nearZeroProducts: $nearZero,
             gapProducts: $gaps,
             spikeProducts: $spikes,
@@ -393,18 +402,14 @@ final class MockAdapter implements DataSourceAdapter
         $batch = (int) ceil($lambda * $peak * 30);
         $stock = array_fill(0, $warehouseCount, 0);
 
-        $lastDay = $kind === 'dead' ? $this->historyDays - 1 - $this->scenarios->deadDays : $this->historyDays - 1;
+        $dead = $kind === 'dead';
+        // Мёртвый товар живёт обычной жизнью до дня последней продажи (включительно), дальше движений нет.
+        $lastDay = $dead
+            ? $this->historyDays - 1 - $this->deadAgeFor(array_search($index, $this->productIndexesOf('dead'), true))
+            : $this->historyDays - 1;
 
         for ($day = 0; $day <= min($toDay, $lastDay); $day++) {
-            if ($kind === 'dead' && $day === $lastDay) {
-                // Последнее движение перед «смертью»: остаток гарантированно > 0.
-                $stock[0] += 50;
-                if ($day >= $fromDay) {
-                    yield $emit($day, 8, 0, StockMovementType::Receipt, 50);
-                }
-
-                break;
-            }
+            $soldToday = false;
 
             for ($w = 0; $w < $warehouseCount; $w++) {
                 if ($stock[$w] < $reorderPoint) {
@@ -437,10 +442,26 @@ final class MockAdapter implements DataSourceAdapter
                 if ($candidates !== []) {
                     $w = $candidates[$random->getInt(0, count($candidates) - 1)];
                     $stock[$w] -= $quantity;
+                    $soldToday = true;
                     if ($day >= $fromDay) {
                         yield $emit($day, 12, $w, StockMovementType::Sale, -$quantity);
                     }
                 }
+            }
+
+            if ($dead && $day === $lastDay) {
+                // День последней продажи: продажа гарантирована (со склада с максимальным остатком),
+                // списаний и корректировок после неё нет. После пополнения (см. выше)
+                // остаток на каждом складе >= точки заказа, поэтому в сумме он остаётся > 0.
+                if (! $soldToday) {
+                    $w = array_search(max($stock), $stock, true);
+                    $stock[$w] -= 1;
+                    if ($day >= $fromDay) {
+                        yield $emit($day, 12, $w, StockMovementType::Sale, -1);
+                    }
+                }
+
+                break;
             }
 
             if ($random->getInt(1, 200) === 1) {
@@ -538,6 +559,24 @@ final class MockAdapter implements DataSourceAdapter
                 yield $emit($day, 12, 0, StockMovementType::Sale, -$rate * ($factor === null ? 1 : $factor($day)));
             }
         }
+    }
+
+    /**
+     * Возраст последней продажи k-го мёртвого товара в днях на historyEnd:
+     * deadAges[k % count], но не больше historyDays − 91, чтобы до последней
+     * продажи у товара было не менее 90 дней обычной истории (Small: 365 −
+     * 91 = 274 дня). Меньше MIN_DEAD_AGE (порог неликвида по умолчанию)
+     * возраст не бывает.
+     */
+    private function deadAgeFor(int $k): int
+    {
+        $ages = $this->scenarios->deadAges;
+        $age = min($ages[$k % count($ages)], $this->historyDays - 1 - self::MIN_HISTORY_BEFORE_DEAD);
+        if ($age < self::MIN_DEAD_AGE) {
+            throw new InvalidArgumentException("Возраст мёртвого товара {$age} < ".self::MIN_DEAD_AGE.' дней (история слишком короткая или список deadAges задан неверно).');
+        }
+
+        return $age;
     }
 
     /** @return array{int, int} [daily_rate, days_to_zero] для k-го near_zero-товара. */

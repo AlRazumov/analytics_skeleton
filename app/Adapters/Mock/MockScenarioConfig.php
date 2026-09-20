@@ -16,7 +16,14 @@ final readonly class MockScenarioConfig
         public int $gapCount,
         public int $spikeCount,
         public int $seasonalCount,
-        /** Сколько последних дней истории у «мёртвого» товара нет движений (> 90). */
-        public int $deadDays = 120,
+        /**
+         * Возраст последней продажи «мёртвых» товаров в днях на historyEnd
+         * (>= 90, порога неликвида по умолчанию): k-й мёртвый товар берёт
+         * deadAges[k % count]. Возраст ограничивается глубиной истории
+         * (см. MockAdapter::deadAgeFor).
+         *
+         * @var list<int>
+         */
+        public array $deadAges = [100, 250],
     ) {}
 }

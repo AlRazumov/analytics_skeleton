@@ -271,7 +271,7 @@ it('places scenario products according to the configured counts', function (Mock
         ->and($manifest->spikeProducts)->toHaveCount($config->spikeCount)
         ->and($manifest->seasonalProductIds)->toHaveCount($config->seasonalCount)
         ->and($manifest->hasTransfers)->toBeTrue()
-        ->and($manifest->deadDays)->toBeGreaterThan(90);
+        ->and($manifest->deadAges)->toHaveCount($config->deadCount);
 })->with(MockDataProfile::cases());
 
 it('has a yearly sales wave for seasonal products (scenario 1)', function () {
@@ -286,7 +286,7 @@ it('has a yearly sales wave for seasonal products (scenario 1)', function () {
     expect($sold('2025-12'))->toBeGreaterThan(2 * $sold('2026-06'));
 });
 
-it('has dead products with stock but no movements for the last N days (scenario 2)', function () {
+it('has dead products with stock but no movements for the last N days, N per product (scenario 2)', function () {
     [$movements, $adapter] = mockWorld();
     $manifest = $adapter->manifest();
     $stock = balancesFromFetchStock($adapter, null);
@@ -297,8 +297,8 @@ it('has dead products with stock but no movements for the last N days (scenario 
         $daysIdle = (new DateTimeImmutable($manifest->historyEnd))->diff(new DateTimeImmutable($last->format('Y-m-d')))->days;
 
         expect($last->format('Y-m-d'))->toBe($lastMovement)
-            ->and($daysIdle)->toBeGreaterThanOrEqual($manifest->deadDays)
-            ->and($daysIdle)->toBeGreaterThan(90)
+            ->and($daysIdle)->toBe($manifest->deadAges[$productId])
+            ->and($daysIdle)->toBeGreaterThanOrEqual(90)
             ->and(array_sum(array_filter($stock, fn ($k) => str_starts_with($k, $productId.'|'), ARRAY_FILTER_USE_KEY)))->toBeGreaterThan(0.0);
     }
 
