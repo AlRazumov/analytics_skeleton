@@ -142,8 +142,17 @@ final class MockAdapter implements DataSourceAdapter
         }
     }
 
+    /**
+     * Как и остальные fetch*, отдаёт данные только в окне истории
+     * (historyStart()..historyEnd() включительно по дате). Ограничивается
+     * лишь выдача: генерация (поток случайных чисел, счётчик id) идёт по
+     * запрошенному периоду как раньше, поэтому значения внутри окна не
+     * меняются.
+     */
     public function fetchDeals(DateRange $period): iterable
     {
+        $windowStart = $this->historyStart;
+        $windowEnd = $this->historyEnd()->setTime(23, 59, 59);
         $randomizer = $this->randomizerFor('deals');
         $productCount = $this->profile->productCount();
         $dealsPerMonth = $this->profile->dealsPerMonth();
@@ -159,12 +168,16 @@ final class MockAdapter implements DataSourceAdapter
                 // Сумма сделки: условный диапазон 5.00-500.00, ориентировочно.
                 $amount = $randomizer->getInt(500, 50000) / 100;
 
-                yield new Deal(
+                $deal = new Deal(
                     id: "deal-{$counter}",
                     productId: "prod-{$productIndex}",
                     amount: $amount,
                     date: $this->randomDateBetween($randomizer, $rangeStart, $rangeEnd),
                 );
+
+                if ($deal->date >= $windowStart && $deal->date <= $windowEnd) {
+                    yield $deal;
+                }
             }
         }
     }
