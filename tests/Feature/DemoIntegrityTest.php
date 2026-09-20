@@ -12,6 +12,7 @@ const DEMO_PAGES = [
     '/dashboards/stock',
     '/dashboards/top-products',
     '/dashboards/turnover',
+    '/dashboards/transfers',
 ];
 
 beforeEach(function () {
@@ -34,7 +35,8 @@ it('serves every demo page with data after demo:install on Small', function () {
         ->and($canvases('/dashboards/abc-xyz'))->toBe(0)
         ->and($canvases('/dashboards/stock'))->toBe(2)
         ->and($canvases('/dashboards/top-products'))->toBe(1)
-        ->and($canvases('/dashboards/turnover'))->toBe(1);
+        ->and($canvases('/dashboards/turnover'))->toBe(1)
+        ->and($canvases('/dashboards/transfers'))->toBe(0);
 });
 
 it('fills the data behind each page', function () {
@@ -48,6 +50,8 @@ it('fills the data behind each page', function () {
     $top = $this->get('/dashboards/top-products');
     expect($top->viewData('top')->rows)->not->toBeEmpty()
         ->and($top->viewData('topChart'))->not->toBeNull();
+
+    expect($this->get('/dashboards/transfers')->viewData('transfers')->rows)->not->toBeEmpty();
 
     $stock = $this->get('/dashboards/stock');
     expect($stock->viewData('daysOfStockChart'))->not->toBeNull()
