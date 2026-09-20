@@ -270,6 +270,7 @@ it('places scenario products according to the configured counts', function (Mock
         ->and($manifest->gapProducts)->toHaveCount($config->gapCount)
         ->and($manifest->spikeProducts)->toHaveCount($config->spikeCount)
         ->and($manifest->seasonalProductIds)->toHaveCount($config->seasonalCount)
+        ->and($manifest->imbalanceProducts)->toHaveCount($config->imbalanceCount)
         ->and($manifest->hasTransfers)->toBeTrue()
         ->and($manifest->deadAges)->toHaveCount($config->deadCount);
 })->with(MockDataProfile::cases());

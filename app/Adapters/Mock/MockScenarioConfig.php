@@ -6,7 +6,7 @@ namespace App\Adapters\Mock;
  * Сколько товаров MockAdapter отводит под каждый эталонный сценарий
  * (см. MockScenarioManifest). Сценарные товары занимают первые id
  * (prod-1, prod-2, ...) в порядке: dead, near_zero, gaps, spike,
- * seasonal; остальные — обычные.
+ * seasonal, imbalance; остальные — обычные.
  */
 final readonly class MockScenarioConfig
 {
@@ -25,5 +25,7 @@ final readonly class MockScenarioConfig
          * @var list<int>
          */
         public array $deadAges = [100, 250],
+        /** Товаров с дисбалансом между двумя складами (сценарий 7, см. MockAdapter::imbalanceMovements). */
+        public int $imbalanceCount = 0,
     ) {}
 }

@@ -109,7 +109,7 @@ final class MockAdapter implements DataSourceAdapter
         $ranges = [];
         foreach (['dead' => $this->scenarios->deadCount, 'near_zero' => $this->scenarios->nearZeroCount,
             'gaps' => $this->scenarios->gapCount, 'spike' => $this->scenarios->spikeCount,
-            'seasonal' => $this->scenarios->seasonalCount] as $kind => $count) {
+            'seasonal' => $this->scenarios->seasonalCount, 'imbalance' => $this->scenarios->imbalanceCount] as $kind => $count) {
             $ranges[$kind] = [$next, $next + $count - 1];
             $next += $count;
         }
@@ -333,6 +333,21 @@ final class MockAdapter implements DataSourceAdapter
             ];
         }
 
+        $imbalance = [];
+        foreach ($this->productIndexesOf('imbalance') as $k => $i) {
+            $p = $this->imbalanceParams($k);
+            $imbalance["prod-{$i}"] = [
+                'surplus_warehouse_id' => $this->warehouseIds[$p['surplus_warehouse']],
+                'deficit_warehouse_id' => $this->warehouseIds[$p['deficit_warehouse']],
+                'surplus_stock_at_end' => $p['surplus_rate'] * $p['surplus_days'],
+                'surplus_daily_rate' => $p['surplus_rate'],
+                'deficit_stock_at_end' => $p['deficit_rate'] * $p['deficit_days'],
+                'deficit_daily_rate' => $p['deficit_rate'],
+                'surplus_days_of_stock' => $p['surplus_days'],
+                'deficit_days_of_stock' => $p['deficit_days'],
+            ];
+        }
+
         return new MockScenarioManifest(
             historyStart: $this->historyStart->format('Y-m-d'),
             historyEnd: $this->historyEnd()->format('Y-m-d'),
@@ -344,6 +359,7 @@ final class MockAdapter implements DataSourceAdapter
             nearZeroProducts: $nearZero,
             gapProducts: $gaps,
             spikeProducts: $spikes,
+            imbalanceProducts: $imbalance,
             hasTransfers: count($this->warehouseIds) > 1,
         );
     }
@@ -377,6 +393,7 @@ final class MockAdapter implements DataSourceAdapter
             'near_zero' => $this->nearZeroMovements($index, $fromDay, $toDay, $emit),
             'gaps' => $this->gapMovements($fromDay, $toDay, $emit),
             'spike' => $this->spikeMovements($fromDay, $toDay, $emit),
+            'imbalance' => $this->imbalanceMovements($index, $fromDay, $toDay, $emit),
             default => $this->regularMovements($index, $kind, $fromDay, $toDay, $emit),
         };
     }
@@ -535,6 +552,55 @@ final class MockAdapter implements DataSourceAdapter
         yield from $this->constantSales($fromDay, $toDay, $emit, [[0, $this->historyDays, self::SPIKE_BASE_RATE, $receipt]], function (int $day) use ($spikeFrom, $spikeTo): int {
             return $day >= $spikeFrom && $day <= $spikeTo ? self::SPIKE_MULTIPLIER : 1;
         });
+    }
+
+    /**
+     * Сценарий 7 — дисбаланс между двумя складами. Без случайных чисел
+     * (свой поток не нужен, другие сценарии не затрагиваются), без
+     * перемещений: на складе-излишке низкие постоянные продажи и большой
+     * остаток (покрытие >= 120 дней), на складе-дефиците постоянные
+     * продажи и остаток на несколько дней (5..9), который в окне метрики
+     * не обнуляется. Одна приёмка на каждом складе в первый день такова,
+     * что остаток на конец истории равен rate × days.
+     *
+     * @return Generator<StockMovement>
+     */
+    private function imbalanceMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
+    {
+        $p = $this->imbalanceParams(array_search($index, $this->productIndexesOf('imbalance'), true));
+        $sides = [
+            [$p['surplus_warehouse'], $p['surplus_rate'], $p['surplus_days']],
+            [$p['deficit_warehouse'], $p['deficit_rate'], $p['deficit_days']],
+        ];
+
+        if ($fromDay <= 0) {
+            foreach ($sides as [$warehouse, $rate, $days]) {
+                yield $emit(0, 8, $warehouse, StockMovementType::Receipt, $rate * ($this->historyDays + $days));
+            }
+        }
+
+        for ($day = max(0, $fromDay); $day <= $toDay && $day < $this->historyDays; $day++) {
+            foreach ($sides as [$warehouse, $rate]) {
+                yield $emit($day, 12, $warehouse, StockMovementType::Sale, -$rate);
+            }
+        }
+    }
+
+    /**
+     * @return array{surplus_warehouse: int, deficit_warehouse: int, surplus_rate: int, surplus_days: int, deficit_rate: int, deficit_days: int}
+     */
+    private function imbalanceParams(int $k): array
+    {
+        $warehouses = count($this->warehouseIds);
+
+        return [
+            'surplus_warehouse' => $k % $warehouses,
+            'deficit_warehouse' => ($k + 1) % $warehouses,
+            'surplus_rate' => 1 + $k % 2,
+            'surplus_days' => 120 + 30 * ($k % 4),
+            'deficit_rate' => 4 + $k % 3,
+            'deficit_days' => 5 + $k % 5,
+        ];
     }
 
     /**
