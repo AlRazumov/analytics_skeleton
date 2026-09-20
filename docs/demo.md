@@ -62,3 +62,25 @@ cp .env.example .env
 - Значения мока фиксированы seed'ом: разные `ANALYTICS_MOCK_SEED` дают
   разные, но такие же синтетические данные.
 - Деньги на страницах — условные единицы мока.
+
+## Как обновить Chart.js
+
+Chart.js лежит локально: `public/vendor/chartjs/chart.umd.min.js` (UMD-сборка,
+та же, что отдаёт CDN по `chart.js@4`) и `LICENSE.md` (MIT); подключён в
+`resources/views/components/layouts/standalone.blade.php` через `asset()`.
+Текущая версия — 4.5.1 (в заголовке файла: `Chart.js v4.5.1`). Пакеты в проект
+не добавляются — файл берётся из официального npm-дистрибутива:
+
+```bash
+cd "$(mktemp -d)"                       # временная папка вне проекта
+npm pack chart.js@4.x.y                  # нужная версия 4.x
+tar xzf chart.js-4.x.y.tgz
+sha256sum package/dist/chart.umd.min.js  # запишите хэш в отчёт/коммит
+cp package/dist/chart.umd.min.js <проект>/public/vendor/chartjs/chart.umd.min.js
+cp package/LICENSE.md            <проект>/public/vendor/chartjs/LICENSE.md
+```
+
+После замены проверьте страницы с графиками в браузере и обновите версию в
+этом разделе и в тесте `tests/Feature/NoExternalAssetsTest.php`. Карта
+`chart.umd.min.js.map` не копируется (в консоли браузера возможно
+предупреждение об отсутствии source map — на работу не влияет).
