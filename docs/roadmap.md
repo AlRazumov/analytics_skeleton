@@ -22,7 +22,7 @@
 | 11 | Выбор источника данных, справочники товаров и складов, исправление overview | stages/stage-11-source-reference-overview.md | done (см. reports/stage-11-source-reference-overview.md) | 09, 10 |
 | 12 | Витрина на моке: оборачиваемость, графики новых метрик, YoY, демо-режим | stages/stage-12-showcase.md | done (см. reports/stage-12-showcase.md) | 09, 10, 11 |
 | 13 | Реализм мока и гигиена витрины: детерминизм сделок, разброс возрастов неликвидов, сценарий дисбаланса складов, Chart.js локально, подписи overview | stages/stage-13-mock-realism.md | done (см. reports/stage-13-mock-realism.md) | 12 |
-| 14 | Рекомендации перемещений между складами | — | planned (данные для него — сценарий дисбаланса этапа 13) | 13 |
+| 14 | Рекомендации перемещений между складами | stages/stage-14-transfer-recommendations.md | in progress (данные — сценарий дисбаланса этапа 13) | 13 |
 | 15 | Bitrix24Adapter | — | not planned (отложен на неопределённый срок, ждёт клиента) | 06 |
 | 16 | OneCAdapter | — | not planned (отложен на неопределённый срок; заказчик тянет время, может не состояться) | 06 |
 
