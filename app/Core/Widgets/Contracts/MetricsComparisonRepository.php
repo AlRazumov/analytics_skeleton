@@ -90,4 +90,15 @@ interface MetricsComparisonRepository
      * @return list<int>
      */
     public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges): array;
+
+    /**
+     * Все строки метрики за период для товаров, у которых есть хотя бы одна
+     * строка с value <= $maxValue (включительно). Ожидает entity_id вида
+     * "<товар>:<склад>" (product_warehouse). Один запрос; строки
+     * читаются потоково, по entity_id по возрастанию (побайтово), несут
+     * value_meta. Товар определяется частью ключа до первого ':'.
+     *
+     * @return iterable<MetricComparisonRow>
+     */
+    public function rowsOfProductsWithValueAtMost(string $metricKey, string $entityType, Period $period, float $maxValue): iterable;
 }

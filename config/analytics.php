@@ -23,6 +23,21 @@ return [
         'min_in_stock_days' => 7,
     ],
 
+    // Рекомендации перемещений между складами (дни покрытия = остаток / скорость продаж).
+    // Требуется deficit_days < target_days <= keep_days <= surplus_days.
+    'transfers' => [
+        // Дефицит: покрытие <= порога.
+        'deficit_days' => 14,
+        // Получателю довозят до этого покрытия.
+        'target_days' => 30,
+        // Донор не опускается ниже этого покрытия.
+        'keep_days' => 30,
+        // Донор: покрытие >= порога.
+        'surplus_days' => 60,
+        // Строки меньше этого количества (шт.) не рекомендуются.
+        'min_quantity' => 1,
+    ],
+
     // Флаги функциональности влияют ТОЛЬКО на показ (роуты, навигация,
     // виджеты). Метрики считаются всегда, независимо от флагов.
     'features' => [
@@ -30,6 +45,7 @@ return [
         'stockout_risk' => (bool) env('ANALYTICS_FEATURE_STOCKOUT_RISK', true),
         'top_products' => (bool) env('ANALYTICS_FEATURE_TOP_PRODUCTS', true),
         'turnover' => (bool) env('ANALYTICS_FEATURE_TURNOVER', true),
+        'transfers' => (bool) env('ANALYTICS_FEATURE_TRANSFERS', true),
     ],
 
     // Пороги и размеры таблиц на страницах (не путать с порогами расчёта).

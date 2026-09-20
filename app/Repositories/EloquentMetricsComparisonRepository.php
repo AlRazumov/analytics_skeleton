@@ -130,6 +130,28 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         return array_map(static fn (int $i) => (int) $row->{"b{$i}"}, array_keys($ranges));
     }
 
+    public function rowsOfProductsWithValueAtMost(string $metricKey, string $entityType, Period $period, float $maxValue): iterable
+    {
+        $deficitProducts = $this->current($metricKey, $entityType, $period)
+            ->where('cur.value', '<=', $maxValue)
+            ->selectRaw("split_part(cur.entity_id, ':', 1)");
+
+        $query = $this->current($metricKey, $entityType, $period)
+            ->select('cur.entity_id', 'cur.value', 'cur.value_meta')
+            ->whereRaw("split_part(cur.entity_id, ':', 1) IN ({$deficitProducts->toSql()})", $deficitProducts->getBindings())
+            ->orderByRaw('cur.entity_id COLLATE "C" asc');
+
+        foreach ($query->cursor() as $row) {
+            yield MetricComparisonRow::of(
+                $entityType,
+                $row->entity_id,
+                (float) $row->value,
+                null,
+                $row->value_meta === null ? [] : (json_decode($row->value_meta, true) ?? []),
+            );
+        }
+    }
+
     private function applyValueRange(Builder $query, ?float $minValue, ?float $maxValue): void
     {
         if ($minValue !== null && $maxValue !== null && $minValue > $maxValue) {
