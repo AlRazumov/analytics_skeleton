@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\RateLimiter;
 
 uses(RefreshDatabase::class);
 
-const STANDALONE_PATHS = ['/dashboards/overview', '/dashboards/abc-xyz', '/demo/widgets'];
+const STANDALONE_PATHS = ['/dashboards/overview', '/dashboards/abc-xyz', '/dashboards/turnover'];
 
 function makeUser(string $email = 'user@example.com', string $password = 'correct-horse-battery'): User
 {
