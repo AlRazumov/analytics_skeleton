@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dashboards;
 
 use App\Core\Domain\Enums\Direction;
 use App\Core\Domain\Period;
+use App\Core\Widgets\ProductChartsProvider;
 use App\Core\Widgets\ProductTablesProvider;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -14,7 +15,7 @@ class TopProductsDashboardController extends Controller
 {
     use ResolvesMonthPeriod;
 
-    public function __invoke(Request $request, ProductTablesProvider $tables): View
+    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts): View
     {
         $period = $this->requestedMonth($request);
         $limit = (int) config('analytics.display.table_limit');
@@ -25,6 +26,6 @@ class TopProductsDashboardController extends Controller
             ? $top
             : $tables->topProducts(Period::fromKey($top->period), Direction::Asc, $limit);
 
-        return view('dashboards.top-products', ['top' => $top, 'antiTop' => $antiTop]);
+        return view('dashboards.top-products', ['top' => $top, 'antiTop' => $antiTop, 'topChart' => $charts->topRevenue($top)]);
     }
 }
