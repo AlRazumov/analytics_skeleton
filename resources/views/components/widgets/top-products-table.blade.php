@@ -1,10 +1,13 @@
-@props(['data', 'title'])
+@props(['data', 'title', 'note' => null])
 @php
     /** @var \App\Core\Widgets\DTO\RankedTableData<\App\Core\Widgets\DTO\TopProductRow> $data */
 @endphp
 
 <div class="widget widget-table widget-top-products">
     <h2>{{ $title }}</h2>
+    @if ($note !== null)
+        <p class="widget-note">{{ $note }}</p>
+    @endif
     <x-widgets.period-caption :data="$data" />
 
     @if ($data->period !== null)

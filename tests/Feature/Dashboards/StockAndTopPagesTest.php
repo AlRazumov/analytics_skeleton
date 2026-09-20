@@ -197,7 +197,23 @@ it('shows the same top-5 and anti-top-5 as an independent oracle, with MoM colum
             }
         }
     }
-    $response->assertSee('Топ')->assertSee('Анти-топ')->assertSee('Показано 5 из');
+    $response->assertSee('Топ')->assertSee('Наименьшая выручка среди проданных за месяц')->assertSee('Показано 5 из');
+});
+
+it('explains the anti-top block and points to dead stock only when the dead_stock flag is on', function () {
+    seedFromMock(1);
+    $note = 'Товары без продаж за месяц смотрите в разделе «Неликвиды».';
+
+    config(['analytics.features.dead_stock' => true]);
+    $this->get('/dashboards/top-products')->assertOk()
+        ->assertSee('Наименьшая выручка среди проданных за месяц')
+        ->assertSee($note);
+
+    config(['analytics.features.dead_stock' => false]);
+    $this->get('/dashboards/top-products')->assertOk()
+        ->assertSee('Наименьшая выручка среди проданных за месяц')
+        ->assertDontSee($note)
+        ->assertDontSee('Неликвиды');
 });
 
 it('renders MoM arrows, colors and a dash for a missing percent', function () {
