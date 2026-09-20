@@ -114,3 +114,20 @@ it('keeps the revenue dynamics line chart for the last 6 months on overview', fu
     expect($response->viewData('lineChart')->series[0]->points)->toHaveCount(6)
         ->and(substr_count($response->getContent(), "type: 'line'"))->toBe(1);
 });
+
+it('shows Russian labels instead of the metric key in the overview charts, KPI card and table', function () {
+    foreach (['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'] as $i => $month) {
+        chartSeed('revenue', 'product', "month:{$month}", ['a' => 100 + $i], []);
+    }
+
+    $html = $this->get('/dashboards/overview')->assertOk()->getContent();
+    $label = json_encode('Выручка', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+
+    expect($html)->toContain('<h3>Выручка</h3>')                       // заголовки обоих графиков
+        ->and($html)->toContain('"label":'.$label)                      // подпись ряда в JS
+        ->and($html)->toMatch('~kpi-label">\s*Выручка\s*<~u')
+        ->and($html)->toContain('<th>Период</th>')->toContain('<th>Выручка</th>')
+        ->and($html)->not->toContain('<h3>revenue</h3>')
+        ->and($html)->not->toContain('"label":"revenue"')
+        ->and($html)->not->toContain('<th>revenue</th>')->not->toContain('<th>period</th>');
+});

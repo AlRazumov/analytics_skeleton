@@ -4,7 +4,7 @@
 @endphp
 
 <div class="widget widget-kpi-card">
-    <div class="kpi-label">{{ $data->label }}</div>
+    <div class="kpi-label">{{ \App\Support\MetricLabels::label($data->label) }}</div>
     <div class="kpi-value">
         {{ number_format($data->value, 2) }}
         @if ($data->unit)

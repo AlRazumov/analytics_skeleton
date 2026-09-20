@@ -8,7 +8,7 @@
         <thead>
             <tr>
                 @foreach ($data->headers as $header)
-                    <th>{{ $header }}</th>
+                    <th>{{ \App\Support\MetricLabels::label($header) }}</th>
                 @endforeach
             </tr>
         </thead>
