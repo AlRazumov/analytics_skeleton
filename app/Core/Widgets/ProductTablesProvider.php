@@ -116,11 +116,11 @@ final readonly class ProductTablesProvider
 
     /**
      * Топ ($dir = Desc) / анти-топ ($dir = Asc) товаров по выручке за месяц
-     * со сравнением с предыдущим месяцем.
+     * со сравнением с базой $base (по умолчанию — предыдущий месяц).
      *
      * @return RankedTableData<TopProductRow>
      */
-    public function topProducts(?Period $period, Direction $dir, int $limit): RankedTableData
+    public function topProducts(?Period $period, Direction $dir, int $limit, ComparisonBase $base = ComparisonBase::Previous): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(self::REVENUE_METRIC, PeriodGranularity::Month);
         if ($period === null) {
@@ -128,7 +128,7 @@ final readonly class ProductTablesProvider
         }
 
         $rows = $this->repository->top(
-            self::REVENUE_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir, ComparisonBase::Previous,
+            self::REVENUE_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir, $base,
         );
         $total = $this->repository->count(self::REVENUE_METRIC, self::PRODUCT, $period);
 
@@ -140,6 +140,17 @@ final readonly class ProductTablesProvider
             ),
             $rows,
         ), $total);
+    }
+
+    /**
+     * Есть ли за период хотя бы один товар с выручкой в базовом периоде
+     * (иначе сравнение с $base бессмысленно — все дельты пусты).
+     */
+    public function hasRevenueBase(Period $period, ComparisonBase $base): bool
+    {
+        return $this->repository->top(
+            self::REVENUE_METRIC, self::PRODUCT, $period, 1, RankBy::DeltaAbs, Direction::Desc, $base,
+        ) !== [];
     }
 
     /**

@@ -1,6 +1,9 @@
-@props(['data', 'title', 'note' => null])
+@props(['data', 'title', 'note' => null, 'base' => \App\Core\Domain\Enums\ComparisonBase::Previous])
 @php
     /** @var \App\Core\Widgets\DTO\RankedTableData<\App\Core\Widgets\DTO\TopProductRow> $data */
+    $yearAgo = $base === \App\Core\Domain\Enums\ComparisonBase::YearAgo;
+    $baseColumn = $yearAgo ? 'Тот же месяц год назад' : 'Прошлый месяц';
+    $deltaSuffix = $yearAgo ? 'к тому же месяцу прошлого года' : 'к пред. месяцу';
 @endphp
 
 <div class="widget widget-table widget-top-products">
@@ -16,9 +19,9 @@
                 <tr>
                     <th>Товар</th>
                     <th>Выручка</th>
-                    <th>Прошлый месяц</th>
-                    <th>Изменение</th>
-                    <th>Изменение, %</th>
+                    <th>{{ $baseColumn }}</th>
+                    <th>Изменение, {{ $deltaSuffix }}</th>
+                    <th>Изменение, % {{ $deltaSuffix }}</th>
                 </tr>
             </thead>
             <tbody>
