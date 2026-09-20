@@ -317,12 +317,15 @@ it('does not grow the number of SQL queries with the number of rows', function (
         seedRaw('days_since_last_sale', 'product', 'month:2026-08', $ids, array_map(fn () => ['stock_qty' => 1], $ids));
         seedRaw('turnover', 'product', 'month:2026-08', $ids, array_map(fn () => ['units_sold' => 1, 'closing_stock' => 1], $ids));
         seedRaw('days_of_stock', 'product_warehouse', 'month:2026-08', $pairs, array_map(fn () => ['stock_qty' => 1, 'daily_rate' => 1], $pairs));
+        // Доноры для страницы перемещений: на втором складе каждого товара — большой запас.
+        $donors = collect(range(1, $rows))->mapWithKeys(fn ($i) => ["p{$i}:w2" => 1000])->all();
+        seedRaw('days_of_stock', 'product_warehouse', 'month:2026-08', $donors, array_map(fn () => ['stock_qty' => 1000, 'daily_rate' => 1], $donors));
 
         $queries = 0;
         DB::listen(function () use (&$queries) {
             $queries++;
         });
-        foreach (['/dashboards/stock', '/dashboards/top-products', '/dashboards/overview', '/dashboards/turnover'] as $path) {
+        foreach (['/dashboards/stock', '/dashboards/top-products', '/dashboards/overview', '/dashboards/turnover', '/dashboards/transfers'] as $path) {
             $this->get($path)->assertOk();
         }
 

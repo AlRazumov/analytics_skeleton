@@ -4,6 +4,7 @@ use App\Http\Controllers\Dashboards\AbcXyzDashboardController;
 use App\Http\Controllers\Dashboards\OverviewDashboardController;
 use App\Http\Controllers\Dashboards\StockDashboardController;
 use App\Http\Controllers\Dashboards\TopProductsDashboardController;
+use App\Http\Controllers\Dashboards\TransfersDashboardController;
 use App\Http\Controllers\Dashboards\TurnoverDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,4 +25,6 @@ Route::middleware('auth')->group(function () {
         ->middleware('feature:top_products')->name('dashboards.top-products');
     Route::get('/dashboards/turnover', TurnoverDashboardController::class)
         ->middleware('feature:turnover')->name('dashboards.turnover');
+    Route::get('/dashboards/transfers', TransfersDashboardController::class)
+        ->middleware('feature:transfers')->name('dashboards.transfers');
 });
