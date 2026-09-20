@@ -4,7 +4,7 @@ use App\Core\Analytics\XyzClassifier;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
 
-it('classifies stable demand as X, volatile demand as Z, and no-demand product as Z without division by zero', function () {
+it('classifies stable demand as X, volatile demand as Z, and zero-amount deals as Z without division by zero', function () {
     $deals = [
         // prod-1: стабильный спрос 100 в каждом из трёх месяцев -> CV=0 -> X.
         new Deal('deal-1', 'prod-1', 100.0, new DateTimeImmutable('2026-01-10')),

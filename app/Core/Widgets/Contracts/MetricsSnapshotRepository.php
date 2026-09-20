@@ -18,9 +18,9 @@ interface MetricsSnapshotRepository
     public function findByPeriodKeys(string $entityType, string $metricKey, array $periodKeys): array;
 
     /**
-     * Ключ `period` снэпшота, рассчитанного последним по факту (по
-     * моменту записи в БД — `created_at`, а не по значению `period`),
-     * для (entityType, metricKey), или null, если снэпшотов ещё нет.
+     * Ключ `period` самого свежего снэпшота для (entityType, metricKey) —
+     * с наибольшим `period_start` (при равенстве — с наибольшим `id`); момент
+     * записи `created_at` не учитывается. Null, если снэпшотов ещё нет.
      *
      * Единственный источник знания о том, как искать "актуальный"
      * снэпшот для метрик, которые не образуют помесячную серию, а
@@ -29,15 +29,9 @@ interface MetricsSnapshotRepository
      * period — это последний месяц диапазона, переданного в
      * MetricsCalculationService::calculate(), а не помесячная запись).
      * Consumer'ам не нужно (и не должно быть нужно) знать/угадывать
-     * этот period самостоятельно — раньше это дублировалось в каждом
-     * контроллере и расходилось с реальным периодом прогона
-     * metrics:calculate.
+     * этот period самостоятельно.
      *
-     * Важно: "самый свежий" — это снэпшот с наибольшим `period_start`
-     * (момент записи `created_at` не учитывается): пересчёт/бэкфилл
-     * более раннего периода не меняет «последний период». Раньше критерием
-     * был `created_at`, и бэкфилл старого окна сдвигал матрицу на старый
-     * период.
+     * Пересчёт/бэкфилл более раннего периода не меняет «последний период».
      */
     public function latestPeriodFor(string $entityType, string $metricKey): ?string;
 }
