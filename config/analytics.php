@@ -29,6 +29,7 @@ return [
         'dead_stock' => (bool) env('ANALYTICS_FEATURE_DEAD_STOCK', true),
         'stockout_risk' => (bool) env('ANALYTICS_FEATURE_STOCKOUT_RISK', true),
         'top_products' => (bool) env('ANALYTICS_FEATURE_TOP_PRODUCTS', true),
+        'turnover' => (bool) env('ANALYTICS_FEATURE_TURNOVER', true),
     ],
 
     // Пороги и размеры таблиц на страницах (не путать с порогами расчёта).
@@ -41,5 +42,13 @@ return [
 
         // Максимум строк в таблице (для топа и анти-топа — каждой).
         'table_limit' => 20,
+
+        // Границы корзин графиков (нижняя граница каждой следующей корзины,
+        // по возрастанию). Первая корзина каждого графика задаётся сама:
+        // неликвиды — от dead_stock_display_days, дни до обнуления — от 0,
+        // оборачиваемость — точный 0, затем (0; первая граница).
+        'dead_stock_age_bounds' => [180, 365],
+        'days_of_stock_bounds' => [8, 15, 31, 61],
+        'turnover_bounds' => [1.0, 2.0],
     ],
 ];

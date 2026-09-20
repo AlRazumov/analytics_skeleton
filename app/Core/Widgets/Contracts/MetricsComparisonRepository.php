@@ -8,6 +8,7 @@ use App\Core\Domain\Enums\PeriodGranularity;
 use App\Core\Domain\Enums\RankBy;
 use App\Core\Domain\Period;
 use App\Core\Widgets\DTO\MetricComparisonRow;
+use App\Core\Widgets\DTO\ValueRange;
 use InvalidArgumentException;
 
 /**
@@ -78,4 +79,15 @@ interface MetricsComparisonRepository
      * «сейчас» не используется — только то, что лежит в хранилище.
      */
     public function latestPeriod(string $metricKey, PeriodGranularity $granularity): ?Period;
+
+    /**
+     * Число сущностей за период в каждом из диапазонов $ranges (по value
+     * текущего периода), в том же порядке. Считается одним агрегатным
+     * запросом в БД; диапазоны могут пересекаться — сущность попадёт в
+     * каждый подходящий.
+     *
+     * @param  list<ValueRange>  $ranges
+     * @return list<int>
+     */
+    public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges): array;
 }

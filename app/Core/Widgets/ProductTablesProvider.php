@@ -18,6 +18,7 @@ use App\Core\Widgets\DTO\MetricComparisonRow;
 use App\Core\Widgets\DTO\RankedTableData;
 use App\Core\Widgets\DTO\StockoutRiskRow;
 use App\Core\Widgets\DTO\TopProductRow;
+use App\Core\Widgets\DTO\TurnoverRow;
 
 /**
  * Данные табличных виджетов по товарам (неликвиды, риск дефицита,
@@ -31,6 +32,8 @@ final readonly class ProductTablesProvider
     private const string REVENUE_METRIC = 'revenue';
 
     private const string PRODUCT = 'product';
+
+    private const string TURNOVER_METRIC = 'turnover';
 
     public function __construct(
         private MetricsComparisonRepository $repository,
@@ -134,6 +137,36 @@ final readonly class ProductTablesProvider
         return new RankedTableData($period->key(), array_map(
             fn (MetricComparisonRow $r) => new TopProductRow(
                 $r->entityId, $names[$r->entityId] ?? $r->entityId, $r->value, $r->baseValue, $r->deltaAbs, $r->deltaPct,
+            ),
+            $rows,
+        ), $total);
+    }
+
+    /**
+     * Оборачиваемость товаров за месяц (штуки): по возрастанию ($dir = Asc,
+     * «самая низкая») или по убыванию ($dir = Desc, «самая высокая»).
+     *
+     * @return RankedTableData<TurnoverRow>
+     */
+    public function turnover(?Period $period, Direction $dir, int $limit): RankedTableData
+    {
+        $period ??= $this->repository->latestPeriod(self::TURNOVER_METRIC, PeriodGranularity::Month);
+        if ($period === null) {
+            return new RankedTableData(null, [], 0);
+        }
+
+        $rows = $this->repository->top(self::TURNOVER_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir);
+        $total = $this->repository->count(self::TURNOVER_METRIC, self::PRODUCT, $period);
+
+        $names = $this->names->names(array_map(static fn (MetricComparisonRow $r) => $r->entityId, $rows));
+
+        return new RankedTableData($period->key(), array_map(
+            fn (MetricComparisonRow $r) => new TurnoverRow(
+                $r->entityId,
+                $names[$r->entityId] ?? $r->entityId,
+                self::metaFloat($r, 'closing_stock'),
+                self::metaFloat($r, 'units_sold'),
+                $r->value,
             ),
             $rows,
         ), $total);

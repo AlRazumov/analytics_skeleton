@@ -102,6 +102,34 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             : Period::containing($granularity, new DateTimeImmutable(substr((string) $start, 0, 10)));
     }
 
+    public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges): array
+    {
+        if ($ranges === []) {
+            return [];
+        }
+
+        $selects = [];
+        $bindings = [];
+        foreach ($ranges as $i => $range) {
+            $conditions = [];
+            if ($range->min !== null) {
+                $conditions[] = 'cur.value '.($range->minInclusive ? '>=' : '>').' ?';
+                $bindings[] = $range->min;
+            }
+            if ($range->max !== null) {
+                $conditions[] = 'cur.value '.($range->maxInclusive ? '<=' : '<').' ?';
+                $bindings[] = $range->max;
+            }
+            $selects[] = 'COUNT(*) FILTER (WHERE '.($conditions === [] ? 'TRUE' : implode(' AND ', $conditions)).") AS b{$i}";
+        }
+
+        $row = $this->current($metricKey, $entityType, $period)
+            ->selectRaw(implode(', ', $selects), $bindings)
+            ->first();
+
+        return array_map(static fn (int $i) => (int) $row->{"b{$i}"}, array_keys($ranges));
+    }
+
     private function applyValueRange(Builder $query, ?float $minValue, ?float $maxValue): void
     {
         if ($minValue !== null && $maxValue !== null && $minValue > $maxValue) {
@@ -115,13 +143,18 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         }
     }
 
-    private function query(string $metricKey, string $entityType, Period $period, ?ComparisonBase $base): Builder
+    private function current(string $metricKey, string $entityType, Period $period): Builder
     {
-        $query = DB::table('metrics_snapshots as cur')
+        return DB::table('metrics_snapshots as cur')
             ->where('cur.metric_key', $metricKey)
             ->where('cur.entity_type', $entityType)
             ->where('cur.period_type', $period->granularity->value)
-            ->where('cur.period_start', $period->start->format('Y-m-d'))
+            ->where('cur.period_start', $period->start->format('Y-m-d'));
+    }
+
+    private function query(string $metricKey, string $entityType, Period $period, ?ComparisonBase $base): Builder
+    {
+        $query = $this->current($metricKey, $entityType, $period)
             ->select('cur.entity_id', 'cur.value', 'cur.value_meta');
 
         if ($base === null) {

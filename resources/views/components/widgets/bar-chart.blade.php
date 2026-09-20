@@ -1,4 +1,4 @@
-@props(['data'])
+@props(['data', 'horizontal' => false, 'note' => null])
 @php
     /** @var \App\Core\Widgets\DTO\LineChartData $data */
     $canvasId = 'bar-chart-'.\Illuminate\Support\Str::random(8);
@@ -11,6 +11,9 @@
 
 <div class="widget widget-bar-chart">
     <h3>{{ $data->title }}</h3>
+    @if ($note !== null)
+        <p class="widget-note">{{ $note }}</p>
+    @endif
     <canvas id="{{ $canvasId }}"></canvas>
 </div>
 
@@ -19,6 +22,9 @@
         const ctx = document.getElementById(@json($canvasId));
         new Chart(ctx, {
             type: 'bar',
+            @if ($horizontal)
+            options: { indexAxis: 'y' },
+            @endif
             data: {
                 labels: @json($labels),
                 datasets: @json($datasets),

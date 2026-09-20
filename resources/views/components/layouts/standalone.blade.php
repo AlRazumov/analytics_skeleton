@@ -108,6 +108,9 @@
                 @if (config('analytics.features.top_products'))
                     <a href="{{ route('dashboards.top-products') }}" @class(['is-active' => request()->routeIs('dashboards.top-products')])>Топ товаров</a>
                 @endif
+                @if (config('analytics.features.turnover'))
+                    <a href="{{ route('dashboards.turnover') }}" @class(['is-active' => request()->routeIs('dashboards.turnover')])>Оборачиваемость</a>
+                @endif
             </nav>
         @endunless
         <div class="header__user-slot">
