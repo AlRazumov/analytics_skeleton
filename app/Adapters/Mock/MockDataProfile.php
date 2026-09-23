@@ -52,6 +52,16 @@ enum MockDataProfile: string
         };
     }
 
+    /** Число продавцов растёт с профилем; форма распределения продаж не меняется. */
+    public function sellerCount(): int
+    {
+        return match ($this) {
+            self::Small => 12,
+            self::Medium => 24,
+            self::Large => 48,
+        };
+    }
+
     /**
      * @return list<string>
      */

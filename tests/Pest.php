@@ -3,6 +3,7 @@
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\AdapterCapability;
+use App\Core\Domain\Enums\SellerCoverage;
 use App\Core\Domain\Enums\StockMovementType;
 use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
@@ -115,6 +116,16 @@ function fakeAdapter(array $deals = [], array $stockMovements = [], ?array $capa
             return [];
         }
 
+        public function fetchSellers(): iterable
+        {
+            return [];
+        }
+
+        public function sellerCoverage(): SellerCoverage
+        {
+            return SellerCoverage::None;
+        }
+
         public function capabilities(): array
         {
             return $this->capabilities;
@@ -133,6 +144,16 @@ function stubStockAdapter(array $movements, array $opening = [], ?array $capabil
     return new class($movements, $opening, $capabilities ?? [AdapterCapability::StockMovements, AdapterCapability::StockSnapshots]) implements DataSourceAdapter
     {
         public function __construct(private array $movements, private array $opening, private array $capabilities) {}
+
+        public function fetchSellers(): iterable
+        {
+            return [];
+        }
+
+        public function sellerCoverage(): SellerCoverage
+        {
+            return SellerCoverage::None;
+        }
 
         public function fetchDeals(DateRange $period): iterable
         {
@@ -198,6 +219,16 @@ function throwingAdapter(): DataSourceAdapter
 {
     return new class implements DataSourceAdapter
     {
+        public function fetchSellers(): iterable
+        {
+            throw new RuntimeException('adapter used: fetchSellers');
+        }
+
+        public function sellerCoverage(): SellerCoverage
+        {
+            throw new RuntimeException('adapter used: sellerCoverage');
+        }
+
         public function fetchDeals(DateRange $period): iterable
         {
             throw new RuntimeException('adapter used: fetchDeals');

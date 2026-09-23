@@ -4,6 +4,7 @@ use App\Adapters\Mock\MockDataProfile;
 use App\Adapters\MockAdapter;
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Enums\SellerCoverage;
 use App\Core\Domain\Product;
 use App\Core\Domain\Warehouse;
 use App\Core\Staging\StagingProduct;
@@ -48,6 +49,16 @@ function referenceAdapter(array $products, array $warehouses = []): DataSourceAd
             return [];
         }
 
+        public function fetchSellers(): iterable
+        {
+            return [];
+        }
+
+        public function sellerCoverage(): SellerCoverage
+        {
+            return SellerCoverage::None;
+        }
+
         public function capabilities(): array
         {
             return [];
@@ -68,7 +79,7 @@ it('is idempotent: a second run leaves the same rows', function () {
     $rows = [snapshotRows(StagingProduct::class), snapshotRows(StagingWarehouse::class)];
     $second = $sync->sync($adapter);
 
-    expect($first)->toBe(['products' => 50, 'warehouses' => MockDataProfile::Small->warehouseCount()])
+    expect($first)->toBe(['products' => 50, 'warehouses' => MockDataProfile::Small->warehouseCount(), 'sellers' => MockDataProfile::Small->sellerCount()])
         ->and($second)->toBe($first)
         ->and([snapshotRows(StagingProduct::class), snapshotRows(StagingWarehouse::class)])->toEqual($rows)
         ->and(StagingProduct::count())->toBe(50);

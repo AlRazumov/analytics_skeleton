@@ -5,7 +5,9 @@ namespace App\Core\Contracts;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
 use App\Core\Domain\Enums\AdapterCapability;
+use App\Core\Domain\Enums\SellerCoverage;
 use App\Core\Domain\Product;
+use App\Core\Domain\Seller;
 use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
 use App\Core\Domain\Warehouse;
@@ -37,6 +39,20 @@ interface DataSourceAdapter
      * @return iterable<Warehouse>
      */
     public function fetchWarehouses(): iterable;
+
+    /**
+     * Справочник продавцов. Источник без продавцов возвращает пустой
+     * iterable (и sellerCoverage() = None).
+     *
+     * @return iterable<Seller>
+     */
+    public function fetchSellers(): iterable;
+
+    /**
+     * У каких сделок из fetchDeals() заполнен sellerId: у всех, у части
+     * или ни у одной. Блок продавцов на дашборде зависит от этого значения.
+     */
+    public function sellerCoverage(): SellerCoverage;
 
     /**
      * Движения за диапазон; обе границы DateRange включительно по

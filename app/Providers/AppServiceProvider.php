@@ -5,12 +5,17 @@ namespace App\Providers;
 use App\Adapters\DataSourceAdapterFactory;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
+use App\Core\Analytics\Sellers\SellerMetricsCalculator;
+use App\Core\Analytics\Sellers\SellerSalesData;
 use App\Core\Contracts\DataSourceAdapter;
+use App\Core\Widgets\Contracts\EntityNameResolver;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Core\Widgets\Contracts\ProductNameResolver;
 use App\Core\Widgets\Contracts\WarehouseNameResolver;
+use App\Core\Widgets\TopNProvider;
+use App\Repositories\DbEntityNameResolver;
 use App\Repositories\DbProductNameResolver;
 use App\Repositories\DbWarehouseNameResolver;
 use App\Repositories\EloquentMetricsComparisonRepository;
@@ -34,6 +39,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Названия для страниц — из справочников в БД (наполняются reference:sync).
         $this->app->bind(ProductNameResolver::class, DbProductNameResolver::class);
+        $this->app->bind(EntityNameResolver::class, DbEntityNameResolver::class);
+        $this->app->bind(TopNProvider::class, fn ($app) => new TopNProvider(
+            $app->make(MetricsComparisonRepository::class),
+            $app->make(EntityNameResolver::class),
+            ['seller' => ['id' => SellerSalesData::NO_SELLER, 'label' => 'Без продавца']],
+        ));
         $this->app->bind(WarehouseNameResolver::class, DbWarehouseNameResolver::class);
 
         // Пороги метрик остатков живут в config/analytics.php, а core
@@ -41,6 +52,15 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DeadStockCalculator::class, fn () => new DeadStockCalculator(
             (int) config('analytics.stock.dead_stock_days'),
         ));
+        // Реестр метрик продавцов: считаются только включённые в конфиге.
+        $this->app->bind(SellerMetricsCalculator::class, function () {
+            $enabled = (array) config('analytics.enabled_metrics.seller');
+            $metrics = array_map(static fn (string $class) => new $class, (array) config('analytics.metrics.seller'));
+
+            return new SellerMetricsCalculator(array_values(array_filter(
+                $metrics, static fn ($m) => in_array($m->key(), $enabled, true),
+            )));
+        });
         $this->app->bind(DaysOfStockCalculator::class, fn () => new DaysOfStockCalculator(
             (int) config('analytics.stock.days_of_stock_window'),
             (int) config('analytics.stock.min_in_stock_days'),

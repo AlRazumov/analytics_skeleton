@@ -12,5 +12,6 @@ final readonly class Deal
         public float $amount,
         public DateTimeImmutable $date,
         public array $meta = [],
+        public ?string $sellerId = null,
     ) {}
 }

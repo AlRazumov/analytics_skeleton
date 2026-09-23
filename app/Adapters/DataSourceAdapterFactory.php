@@ -4,6 +4,7 @@ namespace App\Adapters;
 
 use App\Adapters\Mock\MockDataProfile;
 use App\Core\Contracts\DataSourceAdapter;
+use App\Core\Domain\Enums\SellerCoverage;
 use InvalidArgumentException;
 
 /**
@@ -25,6 +26,7 @@ final class DataSourceAdapterFactory
             'mock' => new MockAdapter(
                 $mockProfile ?? $this->configuredProfile(),
                 (int) config('analytics.mock.seed'),
+                sellerCoverage: SellerCoverage::tryFrom((string) config('analytics.mock.seller_coverage')) ?? SellerCoverage::Full,
             ),
             default => throw new InvalidArgumentException(
                 "Неизвестный источник данных analytics.source='{$source}'. Допустимые значения: ".implode(', ', self::SOURCES).'.',

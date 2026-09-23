@@ -4,11 +4,12 @@ namespace App\Sync;
 
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Staging\StagingProduct;
+use App\Core\Staging\StagingSeller;
 use App\Core\Staging\StagingWarehouse;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Синхронизирует справочники товаров и складов из адаптера в staging_*:
+ * Синхронизирует справочники товаров, складов и продавцов из адаптера в staging_*:
  * поток fetch* → upsert чанками по external_id (name/category/meta
  * обновляются). Записи, которых больше нет в источнике, НЕ удаляются.
  */
@@ -17,7 +18,7 @@ final class ReferenceSyncService
     public const int CHUNK_SIZE = 1000;
 
     /**
-     * @return array{products: int, warehouses: int} число обработанных записей источника
+     * @return array{products: int, warehouses: int, sellers: int} число обработанных записей источника
      */
     public function sync(DataSourceAdapter $adapter): array
     {
@@ -39,7 +40,15 @@ final class ReferenceSyncService
             $now,
         );
 
-        return ['products' => $products, 'warehouses' => $warehouses];
+        $sellers = $this->upsert(
+            StagingSeller::class,
+            $adapter->fetchSellers(),
+            fn ($s) => ['external_id' => $s->id, 'name' => $s->name, 'branch_external_id' => $s->branchId, 'is_active' => $s->isActive, 'meta' => null],
+            ['name', 'branch_external_id', 'is_active', 'meta'],
+            $now,
+        );
+
+        return ['products' => $products, 'warehouses' => $warehouses, 'sellers' => $sellers];
     }
 
     /**

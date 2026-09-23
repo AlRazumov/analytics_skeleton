@@ -31,7 +31,7 @@ it('serves every demo page with data after demo:install on Small', function () {
 
     // Графики: canvas там, где они ожидаются.
     $canvases = fn (string $path) => substr_count($this->get($path)->getContent(), '<canvas');
-    expect($canvases('/dashboards/overview'))->toBe(2)
+    expect($canvases('/dashboards/overview'))->toBe(3)
         ->and($canvases('/dashboards/abc-xyz'))->toBe(0)
         ->and($canvases('/dashboards/stock'))->toBe(2)
         ->and($canvases('/dashboards/top-products'))->toBe(1)

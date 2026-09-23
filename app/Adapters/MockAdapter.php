@@ -11,8 +11,10 @@ use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
 use App\Core\Domain\Enums\AdapterCapability;
+use App\Core\Domain\Enums\SellerCoverage;
 use App\Core\Domain\Enums\StockMovementType;
 use App\Core\Domain\Product;
+use App\Core\Domain\Seller;
 use App\Core\Domain\StockBalance;
 use App\Core\Domain\StockMovement;
 use App\Core\Domain\Warehouse;
@@ -69,6 +71,26 @@ final class MockAdapter implements DataSourceAdapter
 
     private const SPIKE_DAYS = 3;
 
+    /**
+     * Форма распределения продаж по продавцам (по убыванию, сумма 1.0).
+     * Для профилей с другим числом продавцов кривая интерполируется по
+     * квантилям — форма (лидеры/аутсайдеры) сохраняется, меняется число.
+     */
+    private const SELLER_BASE_WEIGHTS = [0.22, 0.17, 0.13, 0.10, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02];
+
+    /** Доля сделок без продавца: полное покрытие / частичное. */
+    private const UNASSIGNED_SHARE_FULL = 0.07;
+
+    private const UNASSIGNED_SHARE_PARTIAL = 0.35;
+
+    /** Новичок продаёт только в последние столько дней окна истории. */
+    private const NEWCOMER_DAYS = 28;
+
+    /** Ранги (с нуля) уволенного и новичка среди продавцов одной «двенадцатки». */
+    private const FIRED_RANK = 4;
+
+    private const NEWCOMER_RANK = 7;
+
     /** @var list<SeasonalPattern> */
     private readonly array $seasonalPatterns;
 
@@ -87,11 +109,15 @@ final class MockAdapter implements DataSourceAdapter
     /** @var list<int> день года (1..366) для каждого дня окна истории */
     private readonly array $dayOfYear;
 
+    /** @var list<array{id: string, name: string, branch: string, weight: float, from: int, to: int, active: bool}> */
+    private readonly array $sellerPlan;
+
     public function __construct(
         private readonly MockDataProfile $profile = MockDataProfile::Medium,
         private readonly int $seed = 42,
         ?MockScenarioConfig $scenarios = null,
         ?DateTimeImmutable $historyEnd = null,
+        private readonly SellerCoverage $sellerCoverage = SellerCoverage::Full,
     ) {
         // Список из одного паттерна на сейчас — расширяемо: второй
         // сезонный паттерн добавляется сюда без переписывания
@@ -123,6 +149,7 @@ final class MockAdapter implements DataSourceAdapter
             $doy[] = (int) $this->historyStart->modify("+{$d} days")->format('z') + 1;
         }
         $this->dayOfYear = $doy;
+        $this->sellerPlan = $this->buildSellerPlan();
     }
 
     public function fetchWarehouses(): iterable
@@ -130,6 +157,22 @@ final class MockAdapter implements DataSourceAdapter
         foreach ($this->warehouseIds as $id) {
             yield new Warehouse(id: $id, name: 'Склад '.substr($id, strrpos($id, '-') + 1));
         }
+    }
+
+    public function fetchSellers(): iterable
+    {
+        if ($this->sellerCoverage === SellerCoverage::None) {
+            return;
+        }
+
+        foreach ($this->sellerPlan as $seller) {
+            yield new Seller($seller['id'], $seller['name'], $seller['branch'], $seller['active']);
+        }
+    }
+
+    public function sellerCoverage(): SellerCoverage
+    {
+        return $this->sellerCoverage;
     }
 
     public function fetchProducts(): iterable
@@ -202,6 +245,9 @@ final class MockAdapter implements DataSourceAdapter
     private function dealsOfMonth(DateTimeImmutable $monthStart, int $firstNumber): Generator
     {
         $randomizer = $this->randomizerFor('deals:'.$monthStart->format('Y-m'));
+        // Продавец — из отдельного потока: основной поток (товар, сумма, дата)
+        // остаётся прежним, поэтому выручка и сезонность не меняются.
+        $sellerRandomizer = $this->randomizerFor('deal-sellers:'.$monthStart->format('Y-m'));
         $monthEnd = $monthStart->modify('+1 month -1 second');
         $productCount = $this->profile->productCount();
         $count = $this->dealsInMonth($monthStart);
@@ -211,13 +257,95 @@ final class MockAdapter implements DataSourceAdapter
             // Сумма сделки: условный диапазон 5.00-500.00, ориентировочно.
             $amount = $randomizer->getInt(500, 50000) / 100;
 
+            $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
+            $sellerId = $this->pickSeller($sellerRandomizer, $date);
+
             yield new Deal(
                 id: 'deal-'.($firstNumber + $i),
                 productId: "prod-{$productIndex}",
                 amount: $amount,
-                date: $this->randomDateBetween($randomizer, $monthStart, $monthEnd),
+                date: $date,
+                sellerId: $sellerId,
             );
         }
+    }
+
+    /**
+     * Продавец сделки: с вероятностью «без продавца» — null, иначе по весам
+     * среди тех, кто в этот день работает. Оба случайных числа берутся
+     * всегда, чтобы поток не зависел от ветвлений.
+     */
+    private function pickSeller(Randomizer $randomizer, DateTimeImmutable $date): ?string
+    {
+        $unassignedRoll = $randomizer->nextFloat();
+        $pickRoll = $randomizer->nextFloat();
+
+        $unassignedShare = match ($this->sellerCoverage) {
+            SellerCoverage::None => 1.0,
+            SellerCoverage::Partial => self::UNASSIGNED_SHARE_PARTIAL,
+            SellerCoverage::Full => self::UNASSIGNED_SHARE_FULL,
+        };
+        if ($unassignedRoll < $unassignedShare) {
+            return null;
+        }
+
+        $day = $this->dayIndex($date);
+        $working = array_filter($this->sellerPlan, static fn (array $s): bool => $day >= $s['from'] && $day <= $s['to']);
+        $total = array_sum(array_column($working, 'weight'));
+        $threshold = $pickRoll * $total;
+        $cumulative = 0.0;
+        foreach ($working as $seller) {
+            $cumulative += $seller['weight'];
+            if ($threshold < $cumulative) {
+                return $seller['id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Продавцы: число растёт с профилем, форма весов — нет. В каждой
+     * «двенадцатке» один уволенный (работает до середины окна истории,
+     * is_active=false) и один новичок (только последние NEWCOMER_DAYS дней).
+     * Филиалы — первые до трёх складов профиля.
+     *
+     * @return list<array{id: string, name: string, branch: string, weight: float, from: int, to: int, active: bool}>
+     */
+    private function buildSellerPlan(): array
+    {
+        $count = $this->profile->sellerCount();
+        $base = self::SELLER_BASE_WEIGHTS;
+        $baseCount = count($base);
+        $branches = array_slice($this->warehouseIds, 0, 3);
+
+        $weights = [];
+        for ($i = 0; $i < $count; $i++) {
+            // Позиция на кривой базовых весов: квантиль продавца.
+            $pos = min($baseCount - 1, max(0.0, ($i + 0.5) / $count * $baseCount - 0.5));
+            $lo = (int) floor($pos);
+            $hi = min($baseCount - 1, $lo + 1);
+            $weights[] = $base[$lo] + ($base[$hi] - $base[$lo]) * ($pos - $lo);
+        }
+        $sum = array_sum($weights);
+
+        $plan = [];
+        for ($i = 0; $i < $count; $i++) {
+            $rank = $i % $baseCount;
+            $fired = $rank === self::FIRED_RANK;
+            $newcomer = $rank === self::NEWCOMER_RANK;
+            $plan[] = [
+                'id' => 'seller-'.($i + 1),
+                'name' => 'Продавец '.($i + 1),
+                'branch' => $branches[$i % count($branches)],
+                'weight' => $weights[$i] / $sum,
+                'from' => $newcomer ? $this->historyDays - self::NEWCOMER_DAYS : 0,
+                'to' => $fired ? intdiv($this->historyDays, 2) - 1 : $this->historyDays - 1,
+                'active' => ! $fired,
+            ];
+        }
+
+        return $plan;
     }
 
     private function dayOf(DateTimeImmutable $date): string

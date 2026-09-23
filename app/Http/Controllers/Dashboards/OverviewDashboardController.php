@@ -41,6 +41,7 @@ class OverviewDashboardController extends Controller
             'kpiCard' => $widgets->kpiCard('product', 'revenue', $period, unit: '₽'),
             'lineChart' => $widgets->lineChart('product', 'revenue', $period),
             'barChart' => $widgets->lineChartYoY('product', 'revenue', $period),
+            'period' => $end,
             'table' => $widgets->table('product', 'revenue', $period, productNames: true),
         ]);
     }

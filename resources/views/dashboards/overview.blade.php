@@ -12,5 +12,9 @@
         <x-widgets.line-chart :data="$lineChart" />
         <x-widgets.bar-chart :data="$barChart" />
         <x-widgets.table :data="$table" />
+
+        @if (config('analytics.features.sellers'))
+            <x-widgets.top-n entity-type="seller" metric="sales_count" :limit="3" :period="$period" />
+        @endif
     @endif
 </x-layouts.standalone>

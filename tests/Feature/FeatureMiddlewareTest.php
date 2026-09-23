@@ -30,5 +30,5 @@ it('treats an unknown flag as off', function () {
 });
 
 it('has all flags on by default', function () {
-    expect(config('analytics.features'))->toBe(['dead_stock' => true, 'stockout_risk' => true, 'top_products' => true, 'turnover' => true, 'transfers' => true]);
+    expect(config('analytics.features'))->toBe(['dead_stock' => true, 'stockout_risk' => true, 'top_products' => true, 'turnover' => true, 'transfers' => true, 'sellers' => true]);
 });

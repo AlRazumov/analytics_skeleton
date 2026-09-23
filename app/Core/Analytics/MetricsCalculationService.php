@@ -2,6 +2,7 @@
 
 namespace App\Core\Analytics;
 
+use App\Core\Analytics\Sellers\SellerMetricsCalculator;
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\AdapterCapability;
@@ -57,6 +58,7 @@ final class MetricsCalculationService
         private readonly DeadStockCalculator $deadStock = new DeadStockCalculator,
         private readonly DaysOfStockCalculator $daysOfStock = new DaysOfStockCalculator,
         private readonly LoggerInterface $logger = new NullLogger,
+        private readonly ?SellerMetricsCalculator $sellers = null,
     ) {}
 
     /**
@@ -103,6 +105,9 @@ final class MetricsCalculationService
                 $this->xyz->calculate($deals, $period),
             ),
             ...$turnoverRecords,
+            // Продавцы: те же deals, один вызов fetchDeals(); реестр — из конфига через контейнер.
+            ...($this->sellers ?? new SellerMetricsCalculator(SellerMetricsCalculator::builtIn()))
+                ->calculate($deals, $adapter->sellerCoverage()),
         ];
 
         // Метрики остатков читают окна сами (свои вызовы fetchStock /

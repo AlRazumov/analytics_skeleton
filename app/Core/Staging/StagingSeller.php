@@ -4,23 +4,21 @@ namespace App\Core\Staging;
 
 use Illuminate\Database\Eloquent\Model;
 
-class StagingDeal extends Model
+class StagingSeller extends Model
 {
-    protected $table = 'staging_deals';
+    protected $table = 'staging_sellers';
 
     protected $fillable = [
         'external_id',
-        'product_external_id',
-        'seller_external_id',
-        'amount',
-        'occurred_at',
+        'name',
+        'branch_external_id',
+        'is_active',
         'meta',
         'synced_at',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:4',
-        'occurred_at' => 'datetime',
+        'is_active' => 'boolean',
         'meta' => 'array',
         'synced_at' => 'datetime',
     ];

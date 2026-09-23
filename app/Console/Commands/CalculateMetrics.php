@@ -35,6 +35,12 @@ class CalculateMetrics extends Command
         ['product', 'revenue'],
         ['product', 'abc_xyz_classification'],
         ['product', 'turnover'],
+        ['seller', 'sales_count'],
+        ['seller', 'sales_amount'],
+        ['seller', 'avg_check'],
+        ['seller', 'share_of_total'],
+        ['seller', 'sales_per_active_day'],
+        ['seller', 'trend'],
         [DeadStockCalculator::ENTITY_TYPE, DeadStockCalculator::METRIC_KEY],
         [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
     ];
@@ -66,7 +72,7 @@ class CalculateMetrics extends Command
 
         // Справочники — из того же адаптера, чтобы страницы показывали названия без обращений к источнику.
         $counts = $referenceSync->sync($adapter);
-        $this->info("Справочники: товаров — {$counts['products']}, складов — {$counts['warehouses']}.");
+        $this->info("Справочники: товаров — {$counts['products']}, складов — {$counts['warehouses']}, продавцов — {$counts['sellers']}.");
 
         $records = $service->calculate($adapter, $dateRange);
 

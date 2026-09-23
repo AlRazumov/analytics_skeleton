@@ -1,5 +1,12 @@
 <?php
 
+use App\Core\Analytics\Sellers\AvgCheck;
+use App\Core\Analytics\Sellers\SalesAmount;
+use App\Core\Analytics\Sellers\SalesCount;
+use App\Core\Analytics\Sellers\SalesPerActiveDay;
+use App\Core\Analytics\Sellers\ShareOfTotal;
+use App\Core\Analytics\Sellers\Trend;
+
 // Порог неликвида в днях: и для расчёта метрики, и (по умолчанию) для показа.
 $deadStockDays = 90;
 
@@ -10,6 +17,29 @@ return [
     'mock' => [
         'profile' => env('ANALYTICS_MOCK_PROFILE', 'medium'),
         'seed' => (int) env('ANALYTICS_MOCK_SEED', 42),
+        // Сколько сделок несёт продавца: full | partial | none.
+        'seller_coverage' => env('ANALYTICS_MOCK_SELLER_COVERAGE', 'full'),
+    ],
+
+    // Реестр метрик по типам сущностей: все известные и включённые
+    // (считаются и показываются только включённые). Ключ — metric_key.
+    'metrics' => [
+        'seller' => [
+            SalesCount::class,
+            SalesAmount::class,
+            AvgCheck::class,
+            ShareOfTotal::class,
+            SalesPerActiveDay::class,
+            Trend::class,
+        ],
+    ],
+    'enabled_metrics' => [
+        'seller' => ['sales_count', 'sales_amount', 'avg_check', 'share_of_total', 'sales_per_active_day', 'trend'],
+    ],
+
+    // Колонки обобщённого топ-N (<x-widgets.top-n>) по типам сущностей.
+    'top_n' => [
+        'seller' => ['columns' => ['sales_count', 'sales_amount', 'share_of_total']],
     ],
 
     'stock' => [
@@ -46,6 +76,7 @@ return [
         'top_products' => (bool) env('ANALYTICS_FEATURE_TOP_PRODUCTS', true),
         'turnover' => (bool) env('ANALYTICS_FEATURE_TURNOVER', true),
         'transfers' => (bool) env('ANALYTICS_FEATURE_TRANSFERS', true),
+        'sellers' => (bool) env('ANALYTICS_FEATURE_SELLERS', true),
     ],
 
     // Пороги и размеры таблиц на страницах (не путать с порогами расчёта).

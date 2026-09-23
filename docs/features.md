@@ -12,6 +12,7 @@
 | `top_products` | `ANALYTICS_FEATURE_TOP_PRODUCTS` | страницу `/dashboards/top-products` и пункт «Топ товаров» |
 | `turnover` | `ANALYTICS_FEATURE_TURNOVER` | страницу `/dashboards/turnover` и пункт «Оборачиваемость» |
 | `transfers` | `ANALYTICS_FEATURE_TRANSFERS` | страницу `/dashboards/transfers` и пункт «Перемещения» |
+| `sellers` | `ANALYTICS_FEATURE_SELLERS` | блок «Топ-3 продавцов» на обзоре |
 
 Страница `/dashboards/stock` и пункт «Остатки» скрыты (404), только если
 выключены **оба** флага — `dead_stock` и `stockout_risk`.

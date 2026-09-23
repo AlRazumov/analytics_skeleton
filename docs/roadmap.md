@@ -25,6 +25,7 @@
 | 14 | Рекомендации перемещений между складами | stages/stage-14-transfer-recommendations.md | done (см. reports/stage-14-transfer-recommendations.md) | 13 |
 | 15 | Bitrix24Adapter | — | not planned (отложен на неопределённый срок, ждёт клиента) | 06 |
 | 16 | OneCAdapter | — | not planned (отложен на неопределённый срок; заказчик тянет время, может не состояться) | 06 |
+| 17 | Продавцы (Seller): справочник, метрики по реестру, топ-N на обзоре; на моке, без реальных адаптеров | stages/stage-17-sellers.md | done (см. reports/stage-17-sellers.md) | 06, 13 |
 
 ## TODO before real adapters
 
