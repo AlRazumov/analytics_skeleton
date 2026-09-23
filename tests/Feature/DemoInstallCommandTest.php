@@ -16,7 +16,7 @@ it('syncs references and calculates the whole mock history without creating a us
         ->assertExitCode(0);
 
     expect(MetricsSnapshot::query()->distinct()->pluck('metric_key')->sort()->values()->all())
-        ->toBe(['abc_xyz_classification', 'avg_check', 'days_of_stock', 'days_since_last_sale', 'revenue', 'sales_amount', 'sales_count', 'sales_per_active_day', 'share_of_total', 'trend', 'turnover'])
+        ->toBe(['abc_xyz_classification', 'avg_check', 'days_of_stock', 'days_since_last_sale', 'lost_sales', 'revenue', 'sales_amount', 'sales_count', 'sales_per_active_day', 'share_of_total', 'stock_no_demand', 'trend', 'turnover'])
         ->and(MetricsSnapshot::where('metric_key', 'revenue')->distinct()->count('period_start'))->toBe(12)
         ->and(User::count())->toBe(0);
 });

@@ -7,6 +7,11 @@ namespace App\Core\Transfers;
  * «куда». Покрытие — в днях (остаток / скорость продаж). «Покрытие после» —
  * нарастающим итогом: после этой строки и всех предыдущих строк того же
  * получателя (для «куда») или того же донора (для «откуда»).
+ *
+ * $reason — почему «откуда» признан донором (см. TransferDonorReason). Для
+ * TransferDonorReason::StockSurplus у донора нет скорости продаж, поэтому
+ * fromCoverageBefore/fromCoverageAfter — INF (условно «бесконечное»
+ * покрытие: остаток есть, спроса, который бы его исчерпал, нет).
  */
 final readonly class TransferRecommendation
 {
@@ -20,5 +25,6 @@ final readonly class TransferRecommendation
         public float $toCoverageBefore,
         public float $toCoverageAfter,
         public float $toDailyRate,
+        public TransferDonorReason $reason = TransferDonorReason::Turnover,
     ) {}
 }

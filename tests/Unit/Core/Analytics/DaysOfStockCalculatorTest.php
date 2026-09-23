@@ -43,16 +43,28 @@ it('gives 0 when the stock on asOf is zero and there was demand', function () {
     expect($records['p1:w1']->value)->toBe(0.0)->and($records['p1:w1']->valueMeta['stock_qty'])->toBe(0.0);
 });
 
-it('writes nothing when there were no sales in the window and counts it', function () {
+it('writes nothing to days_of_stock when there were no sales in the window, but counts it and writes stock_no_demand', function () {
     [$records, $calc] = daysOfStock([stockMove('2026-03-10', 'p1', 'w1', T::Receipt, 5)], ['p1|w1' => 10.0]);
 
-    expect($records)->toBe([])->and($calc->lastSkipped['no_demand'])->toBe(1);
+    expect($records)->toHaveCount(1)
+        ->and($records['p1:w1']->metricKey)->toBe(DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY)
+        ->and($records['p1:w1']->value)->toBe(15.0)
+        ->and($records['p1:w1']->valueMeta)->toBe(['stock_qty' => 15.0])
+        ->and($calc->lastSkipped['no_demand'])->toBe(1);
 });
 
-it('does not count sales outside the window as demand', function () {
+it('does not count sales outside the window as demand, and still writes stock_no_demand for the remaining stock', function () {
     [$records] = daysOfStock([stockMove('2026-03-03', 'p1', 'w1', T::Sale, -5)], ['p1|w1' => 50.0]);
 
-    expect($records)->toBe([]);
+    expect($records)->toHaveCount(1)
+        ->and($records['p1:w1']->metricKey)->toBe(DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY)
+        ->and($records['p1:w1']->value)->toBe(45.0);
+});
+
+it('does not write stock_no_demand when the remaining stock is zero', function () {
+    [$records, $calc] = daysOfStock([stockMove('2026-03-10', 'p1', 'w1', T::Writeoff, -10)], ['p1|w1' => 10.0]);
+
+    expect($records)->toBe([])->and($calc->lastSkipped['no_demand'])->toBe(1);
 });
 
 it('does not treat transfers, receipts, writeoffs and adjustments as demand, but applies them to the stock', function () {

@@ -27,5 +27,19 @@ final readonly class MockScenarioConfig
         public array $deadAges = [100, 250],
         /** Товаров с дисбалансом между двумя складами (сценарий 7, см. MockAdapter::imbalanceMovements). */
         public int $imbalanceCount = 0,
+        /**
+         * Товаров с «потерянными продажами»: продавались в предпоследнем
+         * месяце окна истории, в последнем — ни одной сделки (сценарий для
+         * метрики LostSalesCalculator, см. MockAdapter::isLostSalesProduct).
+         * Не связан со стоком/движениями — влияет только на fetchDeals().
+         */
+        public int $lostSalesCount = 0,
+        /**
+         * Товаров-«доноров без спроса»: остаток есть, продаж за всю
+         * историю нет (сценарий для донора-по-остатку в
+         * TransferRecommendationService, см. MockAdapter::noSalesDonorMovements).
+         * У каждого — парный склад с дефицитом того же товара.
+         */
+        public int $noSalesDonorCount = 0,
     ) {}
 }

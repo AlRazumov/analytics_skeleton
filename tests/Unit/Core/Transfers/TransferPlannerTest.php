@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Transfers\StockSurplusDonor;
+use App\Core\Transfers\TransferDonorReason;
 use App\Core\Transfers\TransferPlan;
 use App\Core\Transfers\TransferPlanner;
 use App\Core\Transfers\TransferPosition;
@@ -118,6 +120,51 @@ it('ignores non-positive rates and negative stock', function () {
     ]);
 
     expect(tpRows($plan))->toBe([['F', 'E', 20]])->and($plan->deficitPairs)->toBe(1);
+});
+
+it('marks a normal donor with reason=turnover', function () {
+    $plan = tpPlanner()->plan([tpPos('p', 'A', 10, 2), tpPos('p', 'B', 200, 2)]);
+
+    expect($plan->recommendations[0]->reason)->toBe(TransferDonorReason::Turnover);
+});
+
+it('serves a deficit from a stock-surplus donor (no demand) and marks reason=stock_surplus', function () {
+    // Дефицит: A (stock 10, rate 5) → 2 дня, нужно 5*30-10 = 140. Донор без спроса: 500 доступно.
+    $plan = tpPlanner()->plan(
+        [tpPos('p', 'A', 10, 5)],
+        [new StockSurplusDonor('p', 'B', 500)],
+    );
+
+    expect(tpRows($plan))->toBe([['B', 'A', 140]]);
+    $r = $plan->recommendations[0];
+    expect($r->reason)->toBe(TransferDonorReason::StockSurplus)
+        ->and($r->fromCoverageBefore)->toBe(INF)
+        ->and($r->fromCoverageAfter)->toBe(INF)
+        ->and($plan->deficitPairs)->toBe(1)->and($plan->unmatchedDeficits)->toBe(0);
+});
+
+it('splits a deficit between a turnover donor and a stock-surplus donor, largest available first', function () {
+    // Нужно 5*30-10 = 140. Обычный донор доступен на 40 (B: stock 100, rate 1 → доступно 100-60=40).
+    // Донор без спроса даёт остальные 100 (available=100, больше 40 → идёт первым).
+    $plan = tpPlanner()->plan(
+        [tpPos('p', 'A', 10, 5), tpPos('p', 'B', 100, 1)],
+        [new StockSurplusDonor('p', 'C', 100)],
+    );
+
+    // Раздача идёт от донора без спроса (available 100 > 40), но итоговый порядок строк — по fromWarehouseId.
+    expect(tpRows($plan))->toBe([['B', 'A', 40], ['C', 'A', 100]]);
+    $byFrom = collect($plan->recommendations)->keyBy('fromWarehouseId');
+    expect($byFrom['C']->reason)->toBe(TransferDonorReason::StockSurplus)
+        ->and($byFrom['B']->reason)->toBe(TransferDonorReason::Turnover);
+});
+
+it('ignores a stock-surplus donor with available <= 0 and a product with no deficit', function () {
+    $plan = tpPlanner()->plan(
+        [tpPos('p', 'A', 1000, 1)],
+        [new StockSurplusDonor('p', 'B', 0), new StockSurplusDonor('q', 'C', 50)],
+    );
+
+    expect($plan->recommendations)->toBe([])->and($plan->deficitPairs)->toBe(0);
 });
 
 it('validates the config', function (array $args) {

@@ -35,6 +35,11 @@ use DateTimeImmutable;
  * доступны в $lastSkipped. Остаток на asOf = 0 при наличии спроса даёт 0.
  * value_meta: stock_qty, daily_rate, in_stock_days, window_days.
  *
+ * Пары без единой продажи (спроса в окне нет вообще, не только в дни в
+ * наличии) дополнительно попадают в NO_DEMAND_STOCK_METRIC_KEY — см. её
+ * докблок; это отдельная, узкая эвристика для донора-по-остатку, а не
+ * замена days_of_stock.
+ *
  * ОГРАНИЧЕНИЕ: сезонность не учитывается — окно короткое, скорость
  * считается плоской.
  *
@@ -47,6 +52,17 @@ final class DaysOfStockCalculator
     public const ENTITY_TYPE = ProductWarehouseKey::ENTITY_TYPE;
 
     public const METRIC_KEY = 'days_of_stock';
+
+    /**
+     * ЭВРИСТИКА ДЛЯ ДЕМО (не финальное продуктовое решение, см. Known
+     * issues в docs/roadmap.md, «склад без продаж не считается донором»):
+     * остаток на пару товар×склад, для которой days_of_stock НЕ считается
+     * из-за отсутствия спроса (нет ни одной продажи в окне) — единственный
+     * источник знания об остатке таких пар, нужен TransferRecommendationService
+     * для донора «по остатку», а не по обороту. Пишется, только когда
+     * итоговый остаток на конец месяца положителен.
+     */
+    public const NO_DEMAND_STOCK_METRIC_KEY = 'stock_no_demand';
 
     private const EPSILON = 1e-9;
 
@@ -96,6 +112,23 @@ final class DaysOfStockCalculator
             foreach ($opening as $key => $quantity) {
                 if ($quantity > self::EPSILON && ! isset($saleByDay[$key])) {
                     $this->lastSkipped['no_demand']++;
+
+                    $finalStock = $quantity;
+                    for ($day = 0; $day < $this->windowDays; $day++) {
+                        $finalStock += $deltaByDay[$key][$day] ?? 0.0;
+                    }
+                    $finalStock = max(0.0, $finalStock);
+
+                    if ($finalStock > self::EPSILON) {
+                        $records[] = new MetricsSnapshotRecord(
+                            entityType: self::ENTITY_TYPE,
+                            entityId: $key,
+                            metricKey: self::NO_DEMAND_STOCK_METRIC_KEY,
+                            value: $finalStock,
+                            period: 'month:'.$month->start->format('Y-m'),
+                            valueMeta: ['stock_qty' => $finalStock],
+                        );
+                    }
                 }
             }
 

@@ -2,7 +2,15 @@
 
 namespace App\Core\Widgets\DTO;
 
-/** Строка таблицы «Перемещения между складами»; покрытие — в днях. */
+use App\Core\Transfers\TransferDonorReason;
+
+/**
+ * Строка таблицы «Перемещения между складами»; покрытие — в днях.
+ *
+ * $donorReason::StockSurplus — ЭВРИСТИКА ДЛЯ ДЕМО (донор без продаж, см.
+ * TransferDonorReason): fromCoverageBefore/fromCoverageAfter для такой
+ * строки — INF (нет скорости продаж, которая бы их определяла).
+ */
 final readonly class TransferRow
 {
     public function __construct(
@@ -18,5 +26,6 @@ final readonly class TransferRow
         public float $toCoverageBefore,
         public float $toCoverageAfter,
         public float $toDailyRate,
+        public TransferDonorReason $donorReason = TransferDonorReason::Turnover,
     ) {}
 }

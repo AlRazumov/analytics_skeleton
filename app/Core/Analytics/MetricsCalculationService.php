@@ -57,6 +57,7 @@ final class MetricsCalculationService
         private readonly TurnoverCalculator $turnover = new TurnoverCalculator,
         private readonly DeadStockCalculator $deadStock = new DeadStockCalculator,
         private readonly DaysOfStockCalculator $daysOfStock = new DaysOfStockCalculator,
+        private readonly LostSalesCalculator $lostSales = new LostSalesCalculator,
         private readonly LoggerInterface $logger = new NullLogger,
         private readonly ?SellerMetricsCalculator $sellers = null,
     ) {}
@@ -108,6 +109,8 @@ final class MetricsCalculationService
             // Продавцы: те же deals, один вызов fetchDeals(); реестр — из конфига через контейнер.
             ...($this->sellers ?? new SellerMetricsCalculator(SellerMetricsCalculator::builtIn()))
                 ->calculate($deals, $adapter->sellerCoverage()),
+            // Потерянные продажи: та же выборка deals, эвристика для демо (см. докблок LostSalesCalculator).
+            ...$this->lostSales->calculate($deals, $period),
         ];
 
         // Метрики остатков читают окна сами (свои вызовы fetchStock /

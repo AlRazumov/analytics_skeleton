@@ -136,7 +136,8 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         $ranges = [];
         foreach (['dead' => $this->scenarios->deadCount, 'near_zero' => $this->scenarios->nearZeroCount,
             'gaps' => $this->scenarios->gapCount, 'spike' => $this->scenarios->spikeCount,
-            'seasonal' => $this->scenarios->seasonalCount, 'imbalance' => $this->scenarios->imbalanceCount] as $kind => $count) {
+            'seasonal' => $this->scenarios->seasonalCount, 'imbalance' => $this->scenarios->imbalanceCount,
+            'lost_sales' => $this->scenarios->lostSalesCount, 'no_sales_donor' => $this->scenarios->noSalesDonorCount] as $kind => $count) {
             $ranges[$kind] = [$next, $next + $count - 1];
             $next += $count;
         }
@@ -252,6 +253,10 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         $monthEnd = $monthStart->modify('+1 month -1 second');
         $productCount = $this->profile->productCount();
         $count = $this->dealsInMonth($monthStart);
+        // Потерянные продажи (см. lostSalesGuaranteedDeals): в последнем
+        // месяце окна истории у этих товаров не должно быть НИ ОДНОЙ
+        // сделки, поэтому обычные случайные попадания на них здесь гасятся.
+        $isLastMonth = $monthStart->format('Y-m') === $this->historyEnd()->format('Y-m');
 
         for ($i = 1; $i <= $count; $i++) {
             $productIndex = $randomizer->getInt(1, $productCount);
@@ -261,12 +266,49 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
             $sellerId = $this->pickSeller($sellerRandomizer, $date);
 
+            if ($isLastMonth && $this->kindOf($productIndex) === 'lost_sales') {
+                continue;
+            }
+
             yield new Deal(
                 id: 'deal-'.($firstNumber + $i),
                 productId: "prod-{$productIndex}",
                 amount: $amount,
                 date: $date,
                 sellerId: $sellerId,
+            );
+        }
+
+        if (! $isLastMonth) {
+            yield from $this->lostSalesGuaranteedDeals($monthStart, $monthEnd);
+        }
+    }
+
+    /**
+     * ЭВРИСТИКА ДЛЯ ДЕМО: сценарий «потерянные продажи» для LostSalesCalculator
+     * (см. Known issues в docs/roadmap.md). Товары из диапазона 'lost_sales'
+     * получают ровно одну гарантированную сделку в каждом месяце окна
+     * истории, КРОМЕ последнего — там (см. dealsOfMonth выше) обычные
+     * случайные попадания на них тоже гасятся, поэтому в последнем месяце
+     * у них нет ни одной сделки, а в предыдущих — есть.
+     *
+     * @return Generator<Deal>
+     */
+    private function lostSalesGuaranteedDeals(DateTimeImmutable $monthStart, DateTimeImmutable $monthEnd): Generator
+    {
+        $randomizer = $this->randomizerFor('lost-sales-deals:'.$monthStart->format('Y-m'));
+        $sellerRandomizer = $this->randomizerFor('lost-sales-sellers:'.$monthStart->format('Y-m'));
+
+        foreach ($this->productIndexesOf('lost_sales') as $index) {
+            $amount = $randomizer->getInt(500, 50000) / 100;
+            $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
+
+            yield new Deal(
+                id: 'deal-lost-'.$index.'-'.$monthStart->format('Y-m'),
+                productId: "prod-{$index}",
+                amount: $amount,
+                date: $date,
+                sellerId: $this->pickSeller($sellerRandomizer, $date),
             );
         }
     }
@@ -477,6 +519,19 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             ];
         }
 
+        $noSalesDonor = [];
+        foreach ($this->productIndexesOf('no_sales_donor') as $k => $i) {
+            $p = $this->noSalesDonorParams($k);
+            $noSalesDonor["prod-{$i}"] = [
+                'donor_warehouse_id' => $this->warehouseIds[$p['donor_warehouse']],
+                'deficit_warehouse_id' => $this->warehouseIds[$p['deficit_warehouse']],
+                'donor_stock_at_end' => $p['donor_stock'],
+                'deficit_stock_at_end' => $p['deficit_rate'] * $p['deficit_days'],
+                'deficit_daily_rate' => $p['deficit_rate'],
+                'deficit_days_of_stock' => $p['deficit_days'],
+            ];
+        }
+
         return new MockScenarioManifest(
             historyStart: $this->historyStart->format('Y-m-d'),
             historyEnd: $this->historyEnd()->format('Y-m-d'),
@@ -490,6 +545,8 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             spikeProducts: $spikes,
             imbalanceProducts: $imbalance,
             hasTransfers: count($this->warehouseIds) > 1,
+            lostSalesProductIds: $ids('lost_sales'),
+            noSalesDonorProducts: $noSalesDonor,
         );
     }
 
@@ -523,6 +580,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             'gaps' => $this->gapMovements($fromDay, $toDay, $emit),
             'spike' => $this->spikeMovements($fromDay, $toDay, $emit),
             'imbalance' => $this->imbalanceMovements($index, $fromDay, $toDay, $emit),
+            'no_sales_donor' => $this->noSalesDonorMovements($index, $fromDay, $toDay, $emit),
             default => $this->regularMovements($index, $kind, $fromDay, $toDay, $emit),
         };
     }
@@ -727,6 +785,47 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             'deficit_warehouse' => ($k + 1) % $warehouses,
             'surplus_rate' => 1 + $k % 2,
             'surplus_days' => 120 + 30 * ($k % 4),
+            'deficit_rate' => 4 + $k % 3,
+            'deficit_days' => 5 + $k % 5,
+        ];
+    }
+
+    /**
+     * ЭВРИСТИКА ДЛЯ ДЕМО: сценарий «донор без спроса» для
+     * TransferRecommendationService (см. Known issues в docs/roadmap.md,
+     * «склад без продаж не считается донором»). Склад-донор получает один
+     * приход в начале истории и ни одной продажи за всю историю (не
+     * попадает в days_of_stock ни разу — метрика не пишется без спроса);
+     * склад-дефицит — обычные постоянные продажи с малым остатком, как в
+     * imbalanceMovements. Перемещений между складами по этим товарам нет.
+     *
+     * @return Generator<StockMovement>
+     */
+    private function noSalesDonorMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
+    {
+        $p = $this->noSalesDonorParams(array_search($index, $this->productIndexesOf('no_sales_donor'), true));
+
+        if ($fromDay <= 0) {
+            yield $emit(0, 8, $p['donor_warehouse'], StockMovementType::Receipt, $p['donor_stock']);
+            yield $emit(0, 8, $p['deficit_warehouse'], StockMovementType::Receipt, $p['deficit_rate'] * ($this->historyDays + $p['deficit_days']));
+        }
+
+        for ($day = max(0, $fromDay); $day <= $toDay && $day < $this->historyDays; $day++) {
+            yield $emit($day, 12, $p['deficit_warehouse'], StockMovementType::Sale, -$p['deficit_rate']);
+        }
+    }
+
+    /**
+     * @return array{donor_warehouse: int, deficit_warehouse: int, donor_stock: int, deficit_rate: int, deficit_days: int}
+     */
+    private function noSalesDonorParams(int $k): array
+    {
+        $warehouses = count($this->warehouseIds);
+
+        return [
+            'donor_warehouse' => $k % $warehouses,
+            'deficit_warehouse' => ($k + 1) % $warehouses,
+            'donor_stock' => 300 + 50 * ($k % 4),
             'deficit_rate' => 4 + $k % 3,
             'deficit_days' => 5 + $k % 5,
         ];

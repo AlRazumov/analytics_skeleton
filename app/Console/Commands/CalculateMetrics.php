@@ -35,6 +35,7 @@ class CalculateMetrics extends Command
         ['product', 'revenue'],
         ['product', 'abc_xyz_classification'],
         ['product', 'turnover'],
+        ['product', 'lost_sales'],
         ['seller', 'sales_count'],
         ['seller', 'sales_amount'],
         ['seller', 'avg_check'],
@@ -43,6 +44,7 @@ class CalculateMetrics extends Command
         ['seller', 'trend'],
         [DeadStockCalculator::ENTITY_TYPE, DeadStockCalculator::METRIC_KEY],
         [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
+        [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY],
     ];
 
     public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer, DataSourceAdapterFactory $factory, ReferenceSyncService $referenceSync): int

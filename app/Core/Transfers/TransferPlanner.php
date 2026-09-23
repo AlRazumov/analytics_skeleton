@@ -38,6 +38,16 @@ use InvalidArgumentException;
  * ОГРАНИЧЕНИЯ: не учитывает сроки доставки, сезонность, минимальные партии
  * поставщика и прочее; покрытие считается по скорости продаж окна метрики
  * days_of_stock, а не по прогнозу.
+ *
+ * $stockSurplusDonors (необязательный второй аргумент plan()) — ЭВРИСТИКА
+ * ДЛЯ ДЕМО (см. TransferDonorReason::StockSurplus): доноры без спроса,
+ * $available которых уже готово к раздаче (посчитано вызывающим кодом, не
+ * этим классом). Участвуют в раздаче наравне с обычными донорами (тот же
+ * порядок по убыванию $available), но не завязаны на deficit_days/
+ * target_days/keep_days/surplus_days — эти пороги для них не действуют,
+ * поскольку у них нет скорости продаж, по которой их считать. Сами
+ * дефицитом стать не могут (по определению — только продукты с деньгами
+ * из $positions, у которых есть скорость продаж, оцениваются как дефицит).
  */
 final class TransferPlanner
 {
@@ -58,8 +68,9 @@ final class TransferPlanner
 
     /**
      * @param  iterable<TransferPosition>  $positions
+     * @param  iterable<StockSurplusDonor>  $stockSurplusDonors
      */
-    public function plan(iterable $positions): TransferPlan
+    public function plan(iterable $positions, iterable $stockSurplusDonors = []): TransferPlan
     {
         $byProduct = [];
         foreach ($positions as $position) {
@@ -69,19 +80,44 @@ final class TransferPlanner
             $byProduct[$position->productId][] = $position;
         }
 
+        $surplusByProduct = [];
+        foreach ($stockSurplusDonors as $donor) {
+            if ($donor->available <= 0) {
+                continue;
+            }
+            $surplusByProduct[$donor->productId][] = $donor;
+        }
+
         $recommendations = [];
         $deficitPairs = 0;
         $unmatched = 0;
-        foreach ($byProduct as $productPositions) {
+        foreach (array_unique([...array_keys($byProduct), ...array_keys($surplusByProduct)]) as $productId) {
             $deficits = [];
             $donors = [];
-            foreach ($productPositions as $p) {
+            foreach ($byProduct[$productId] ?? [] as $p) {
                 $coverage = $p->stock / $p->dailyRate;
                 if ($coverage <= $this->deficitDays) {
                     $deficits[] = [$p, $coverage];
                 } elseif ($coverage >= $this->surplusDays && $p->stock - $p->dailyRate * $this->keepDays > 0) {
-                    $donors[] = ['p' => $p, 'available' => $p->stock - $p->dailyRate * $this->keepDays, 'given' => 0];
+                    $donors[] = [
+                        'warehouseId' => $p->warehouseId,
+                        'available' => $p->stock - $p->dailyRate * $this->keepDays,
+                        'given' => 0,
+                        'reason' => TransferDonorReason::Turnover,
+                        'coverageBefore' => $coverage,
+                        'coverageAfter' => static fn (int $given): float => ($p->stock - $given) / $p->dailyRate,
+                    ];
                 }
+            }
+            foreach ($surplusByProduct[$productId] ?? [] as $donor) {
+                $donors[] = [
+                    'warehouseId' => $donor->warehouseId,
+                    'available' => $donor->available,
+                    'given' => 0,
+                    'reason' => TransferDonorReason::StockSurplus,
+                    'coverageBefore' => INF,
+                    'coverageAfter' => static fn (int $given): float => INF,
+                ];
             }
 
             // Ничья — побайтово (strcmp), а не <=>: '10' <=> '9' сравнивалось бы как числа.
@@ -94,7 +130,7 @@ final class TransferPlanner
                 $rows = 0;
 
                 usort($donors, static fn (array $a, array $b) => $b['available'] <=> $a['available']
-                    ?: strcmp($a['p']->warehouseId, $b['p']->warehouseId));
+                    ?: strcmp($a['warehouseId'], $b['warehouseId']));
 
                 foreach ($donors as &$donor) {
                     if ($need < $this->minQuantity) {
@@ -105,7 +141,6 @@ final class TransferPlanner
                         continue;
                     }
 
-                    $from = $donor['p'];
                     $donor['available'] -= $quantity;
                     $donor['given'] += $quantity;
                     $need -= $quantity;
@@ -114,14 +149,15 @@ final class TransferPlanner
 
                     $recommendations[] = new TransferRecommendation(
                         $to->productId,
-                        $from->warehouseId,
+                        $donor['warehouseId'],
                         $to->warehouseId,
                         $quantity,
-                        $from->stock / $from->dailyRate,
-                        ($from->stock - $donor['given']) / $from->dailyRate,
+                        $donor['coverageBefore'],
+                        ($donor['coverageAfter'])($donor['given']),
                         $toCoverage,
                         ($to->stock + $received) / $to->dailyRate,
                         $to->dailyRate,
+                        $donor['reason'],
                     );
                 }
                 unset($donor);

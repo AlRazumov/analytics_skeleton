@@ -1,6 +1,8 @@
 <?php
 
+use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Domain\Period;
+use App\Core\Transfers\TransferDonorReason;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use App\Repositories\EloquentMetricsComparisonRepository;
 use App\Repositories\EloquentMetricsSnapshotWriter;
@@ -8,6 +10,19 @@ use App\Services\TransferRecommendationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+/** @param array<string, float> $pairs "product:wh" => stock_qty */
+function seedNoDemandStock(array $pairs, string $period = 'month:2026-08'): void
+{
+    $records = [];
+    foreach ($pairs as $key => $stockQty) {
+        $records[] = new MetricsSnapshotRecord(
+            'product_warehouse', $key, DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY,
+            $stockQty, $period, ['stock_qty' => $stockQty],
+        );
+    }
+    (new EloquentMetricsSnapshotWriter)->write($records);
+}
 
 /** @param array<string, array{float, float}|null> $pairs "product:wh" => [stock, rate] (null — без value_meta) */
 function seedDays(array $pairs, string $period = 'month:2026-08', string $metric = 'days_of_stock'): void
@@ -95,8 +110,9 @@ it('builds recommendations from the config thresholds', function () {
     expect(app(TransferRecommendationService::class)->forPeriod($period)->plan->recommendations[0]->quantity)->toBe(90);
 });
 
-it('does not treat a warehouse without a days_of_stock row as a donor (known limitation of v1)', function () {
-    // Дефицит на w1; на w2 остаток есть, но продаж нет → строки days_of_stock нет.
+it('does not treat a warehouse without a days_of_stock row as a donor when it has no stock_no_demand row either', function () {
+    // Дефицит на w1; на w2 остаток есть, но продаж нет → строки days_of_stock нет,
+    // и метрика-эвристика stock_no_demand тоже не посчитана (например, старый прогон).
     seedDays(['a:w1' => [10, 5]]);
 
     $result = app(TransferRecommendationService::class)->forPeriod(Period::fromKey('month:2026-08'));
@@ -104,4 +120,41 @@ it('does not treat a warehouse without a days_of_stock row as a donor (known lim
     expect($result->plan->recommendations)->toBe([])
         ->and($result->plan->deficitPairs)->toBe(1)
         ->and($result->plan->unmatchedDeficits)->toBe(1);
+});
+
+it('treats a no-demand warehouse above the threshold as a stock_surplus donor', function () {
+    // Дефицит: w1 (stock 10, rate 5) → 2 дня, нужно 5*30-10 = 140.
+    seedDays(['a:w1' => [10, 5]]);
+    // w2: остаток 300 без продаж, порог по умолчанию 20 → доступно 280.
+    seedNoDemandStock(['a:w2' => 300]);
+
+    $result = app(TransferRecommendationService::class)->forPeriod(Period::fromKey('month:2026-08'));
+
+    expect($result->plan->deficitPairs)->toBe(1)->and($result->plan->unmatchedDeficits)->toBe(0)
+        ->and($result->plan->recommendations)->toHaveCount(1);
+
+    $r = $result->plan->recommendations[0];
+    expect($r->fromWarehouseId)->toBe('w2')->and($r->toWarehouseId)->toBe('w1')
+        ->and($r->quantity)->toBe(140)
+        ->and($r->reason)->toBe(TransferDonorReason::StockSurplus)
+        ->and($r->fromCoverageBefore)->toBe(INF)->and($r->fromCoverageAfter)->toBe(INF);
+});
+
+it('ignores a no-demand warehouse at or below the stock_surplus threshold', function () {
+    seedDays(['a:w1' => [10, 5]]);
+    config(['analytics.transfers.stock_surplus_min_stock' => 50]);
+    seedNoDemandStock(['a:w2' => 50]);
+
+    $result = app(TransferRecommendationService::class)->forPeriod(Period::fromKey('month:2026-08'));
+
+    expect($result->plan->recommendations)->toBe([])->and($result->plan->unmatchedDeficits)->toBe(1);
+});
+
+it('ignores a no-demand row for a product with no deficit anywhere', function () {
+    seedDays(['a:w1' => [1000, 5]]);
+    seedNoDemandStock(['b:w2' => 300]);
+
+    $result = app(TransferRecommendationService::class)->forPeriod(Period::fromKey('month:2026-08'));
+
+    expect($result->plan->recommendations)->toBe([])->and($result->plan->deficitPairs)->toBe(0);
 });

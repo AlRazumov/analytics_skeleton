@@ -138,10 +138,14 @@ it('leaves every other product exactly as without the scenario', function () {
     $movements = function (MockScenarioConfig $config) {
         $digest = fn (array $lines): string => md5(implode(',', $lines));
         $adapter = new MockAdapter(MockDataProfile::Small, 1, $config);
-        $imbalance = $adapter->manifest()->imbalanceProducts;
+        // Индексы no_sales_donor (как и lost_sales — но у неё нет особых
+        // движений) сдвигаются вместе с imbalanceCount (все — сценарии,
+        // занимающие резервируемые диапазоны id по порядку), поэтому из
+        // сравнения исключаются оба спецсценария остатков.
+        $excluded = $adapter->manifest()->imbalanceProducts + $adapter->manifest()->noSalesDonorProducts;
         $byProduct = [];
         foreach ($adapter->fetchStockMovements(new DateRange($adapter->historyStart(), $adapter->historyEnd())) as $m) {
-            if (! isset($imbalance[$m->productId])) {
+            if (! isset($excluded[$m->productId])) {
                 $byProduct[$m->productId][] = $m->id.'|'.$m->warehouseId.'|'.$m->quantity.'|'.$m->type->value.'|'.$m->date->format('c');
             }
         }
@@ -154,8 +158,9 @@ it('leaves every other product exactly as without the scenario', function () {
     [, $with] = $movements($base);
     [, $plain] = $movements($without);
 
-    // Каждый товар, не отданный под дисбаланс, — те же движения; товары сценария в «без сценария» — обычные.
-    expect(array_diff_key($plain, $with))->toHaveCount($base->imbalanceCount);
+    // Каждый товар, не отданный под дисбаланс/донора-без-спроса, — те же движения;
+    // товары обоих сценариев в «без сценария» (indexRanges короче — все 0) — обычные.
+    expect(array_diff_key($plain, $with))->toHaveCount($base->imbalanceCount + $base->noSalesDonorCount);
     foreach ($with as $productId => $hash) {
         expect($plain[$productId])->toBe($hash);
     }

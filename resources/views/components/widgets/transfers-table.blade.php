@@ -2,6 +2,13 @@
 @php
     /** @var \App\Core\Widgets\DTO\TransferTableData $data */
     $num = fn (float|int $v, int $p = 1) => \App\Support\Format::num($v, $p);
+    // ЭВРИСТИКА ДЛЯ ДЕМО: у донора без продаж (stock_surplus) нет скорости
+    // продаж — покрытие условно бесконечно (INF), в таблице показываем «—».
+    $coverage = fn (float $v, int $p = 1) => is_infinite($v) ? '—' : $num($v, $p);
+    $donorLabel = fn (\App\Core\Transfers\TransferDonorReason $r) => match ($r) {
+        \App\Core\Transfers\TransferDonorReason::Turnover => 'по обороту',
+        \App\Core\Transfers\TransferDonorReason::StockSurplus => 'по остатку (без продаж)',
+    };
 @endphp
 
 <div class="widget widget-table widget-transfers">
@@ -26,6 +33,7 @@
                     <tr>
                         <th>Товар</th>
                         <th>Откуда</th>
+                        <th>Донор</th>
                         <th>Куда</th>
                         <th>Количество, шт.</th>
                         <th>Покрытие «откуда», дней (до → после)</th>
@@ -38,14 +46,15 @@
                         <tr>
                             <td>{{ $row->productName }}</td>
                             <td>{{ $row->fromWarehouseName }}</td>
+                            <td>{{ $donorLabel($row->donorReason) }}</td>
                             <td>{{ $row->toWarehouseName }}</td>
                             <td>{{ $num($row->quantity, 0) }}</td>
-                            <td>{{ $num($row->fromCoverageBefore) }} → {{ $num($row->fromCoverageAfter) }}</td>
+                            <td>{{ $coverage($row->fromCoverageBefore) }} → {{ $coverage($row->fromCoverageAfter) }}</td>
                             <td>{{ $num($row->toCoverageBefore) }} → {{ $num($row->toCoverageAfter) }}</td>
                             <td>{{ $num($row->toDailyRate, 2) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">Нет рекомендаций за период</td></tr>
+                        <tr><td colspan="8">Нет рекомендаций за период</td></tr>
                     @endforelse
                 </tbody>
             </table>

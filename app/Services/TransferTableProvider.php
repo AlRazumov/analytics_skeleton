@@ -63,6 +63,7 @@ final readonly class TransferTableProvider
                 $r->toCoverageBefore,
                 $r->toCoverageAfter,
                 $r->toDailyRate,
+                $r->reason,
             ), $shown),
             count($plan->recommendations),
             $plan->deficitPairs,

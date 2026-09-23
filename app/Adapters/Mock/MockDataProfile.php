@@ -85,9 +85,9 @@ enum MockDataProfile: string
     public function scenarios(): MockScenarioConfig
     {
         return match ($this) {
-            self::Small => new MockScenarioConfig(2, 2, 2, 2, 4, [100, 250], imbalanceCount: 2),
-            self::Medium => new MockScenarioConfig(5, 5, 5, 5, 25, [100, 150, 250, 400], imbalanceCount: 5),
-            self::Large => new MockScenarioConfig(10, 10, 10, 10, 100, [100, 150, 250, 400], imbalanceCount: 10),
+            self::Small => new MockScenarioConfig(2, 2, 2, 2, 4, [100, 250], imbalanceCount: 2, lostSalesCount: 2, noSalesDonorCount: 2),
+            self::Medium => new MockScenarioConfig(5, 5, 5, 5, 25, [100, 150, 250, 400], imbalanceCount: 5, lostSalesCount: 5, noSalesDonorCount: 5),
+            self::Large => new MockScenarioConfig(10, 10, 10, 10, 100, [100, 150, 250, 400], imbalanceCount: 10, lostSalesCount: 10, noSalesDonorCount: 10),
         };
     }
 }

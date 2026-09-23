@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Adapters\DataSourceAdapterFactory;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
+use App\Core\Analytics\LostSalesCalculator;
 use App\Core\Analytics\Sellers\SellerMetricsCalculator;
 use App\Core\Analytics\Sellers\SellerSalesData;
 use App\Core\Contracts\DataSourceAdapter;
@@ -64,6 +65,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DaysOfStockCalculator::class, fn () => new DaysOfStockCalculator(
             (int) config('analytics.stock.days_of_stock_window'),
             (int) config('analytics.stock.min_in_stock_days'),
+        ));
+        $this->app->bind(LostSalesCalculator::class, fn () => new LostSalesCalculator(
+            (int) config('analytics.lost_sales.horizon_months'),
         ));
     }
 

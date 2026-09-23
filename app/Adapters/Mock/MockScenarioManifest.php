@@ -18,6 +18,8 @@ final readonly class MockScenarioManifest
      * @param  array<string, array{from: string, to: string, multiplier: int, baseline_daily: int}>  $spikeProducts  на дни from..to продажи в multiplier раз выше baseline_daily
      * @param  array<string, array{surplus_warehouse_id: string, deficit_warehouse_id: string, surplus_stock_at_end: int, surplus_daily_rate: int, deficit_stock_at_end: int, deficit_daily_rate: int, surplus_days_of_stock: int, deficit_days_of_stock: int}>  $imbalanceProducts  дисбаланс между двумя складами на historyEnd: на складе-излишке остаток/скорость = surplus_days_of_stock (>= 90) дней покрытия, на складе-дефиците — deficit_days_of_stock (<= 10, остаток > 0, в окне метрики не обнуляется); перемещений по этим товарам нет
      * @param  bool  $hasTransfers  есть парные transfer_out/transfer_in (склада больше одного)
+     * @param  list<string>  $lostSalesProductIds  ЭВРИСТИКА ДЛЯ ДЕМО (LostSalesCalculator): сделки есть в каждом месяце окна истории, кроме последнего — там ни одной
+     * @param  array<string, array{donor_warehouse_id: string, deficit_warehouse_id: string, donor_stock_at_end: int, deficit_stock_at_end: int, deficit_daily_rate: int, deficit_days_of_stock: int}>  $noSalesDonorProducts  ЭВРИСТИКА ДЛЯ ДЕМО (донор без спроса, TransferRecommendationService): на donor_warehouse_id остаток есть, продаж за всю историю нет (days_of_stock не пишется); на deficit_warehouse_id — обычный дефицит того же товара
      */
     public function __construct(
         public string $historyStart,
@@ -32,5 +34,7 @@ final readonly class MockScenarioManifest
         public array $spikeProducts,
         public array $imbalanceProducts,
         public bool $hasTransfers,
+        public array $lostSalesProductIds = [],
+        public array $noSalesDonorProducts = [],
     ) {}
 }
