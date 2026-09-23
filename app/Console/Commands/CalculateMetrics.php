@@ -4,11 +4,11 @@ namespace App\Console\Commands;
 
 use App\Adapters\DataSourceAdapterFactory;
 use App\Adapters\Mock\MockDataProfile;
-use App\Adapters\MockAdapter;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Contracts\DataSourceAdapter;
+use App\Core\Contracts\ProvidesHistoryBounds;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsSnapshot;
@@ -100,11 +100,11 @@ class CalculateMetrics extends Command
     private function resolvePeriod(?string $value, DataSourceAdapter $adapter): DateRange
     {
         if ($value === null || $value === '') {
-            // Мок отдаёт данные только до historyEnd() (фиксирован ради
-            // детерминированности), поэтому по умолчанию берём 12 месяцев,
-            // заканчивающихся на нём, а не на «сегодня». Для других адаптеров —
-            // 12 месяцев, заканчивающихся текущим.
-            if ($adapter instanceof MockAdapter) {
+            // Адаптеры с фиксированным (не «до сегодня») концом истории —
+            // например MockAdapter — отдают данные только до historyEnd(),
+            // поэтому по умолчанию берём 12 месяцев, заканчивающихся на нём.
+            // Для источников без такого ограничения — 12 месяцев, заканчивающихся текущим.
+            if ($adapter instanceof ProvidesHistoryBounds) {
                 $end = $adapter->historyEnd();
 
                 return new DateRange(

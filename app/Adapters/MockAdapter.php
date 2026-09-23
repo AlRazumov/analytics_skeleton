@@ -8,6 +8,7 @@ use App\Adapters\Mock\MockScenarioManifest;
 use App\Adapters\Mock\NewYearSeasonalPattern;
 use App\Adapters\Mock\SeasonalPattern;
 use App\Core\Contracts\DataSourceAdapter;
+use App\Core\Contracts\ProvidesHistoryBounds;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
 use App\Core\Domain\Enums\AdapterCapability;
@@ -48,7 +49,7 @@ use Random\Randomizer;
  * результат между прогонами (используется Random\Engine\Mt19937 с
  * явным сидом, не глобальный rand()/mt_rand()).
  */
-final class MockAdapter implements DataSourceAdapter
+final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
 {
     private const CATEGORIES = ['electronics', 'apparel', 'home', 'food', 'toys'];
 

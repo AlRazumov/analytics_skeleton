@@ -152,14 +152,18 @@
   и «мёртвый» остаток на другом дадут «дефицит без донора». Поведение
   зафиксировано тестом `TransferRecommendationServiceTest`.
 
-- ⚠️ open (2026-09-20, ревью кода): слой приложения — команда `metrics:calculate`
-  (`resolvePeriod`) — зависит от конкретного адаптера через
+- ✅ closed (2026-09-23): слой приложения — команда `metrics:calculate`
+  (`resolvePeriod`) — зависел от конкретного адаптера через
   `instanceof MockAdapter` и `historyEnd()`; `historyEnd()` есть только у
-  `MockAdapter`. Ядро (`core`) чистое: это связь слоя приложения, не core.
-  Решение при появлении реальных адаптеров (этапы 15/16): необязательный
-  интерфейс (например `ProvidesHistoryBounds` с методом `historyEnd()`);
-  контракт `DataSourceAdapter` не расширять — реальный источник конец
-  истории сообщить не может (решение этапа 07).
+  `MockAdapter`. Ядро (`core`) было чистым: связь была на уровне слоя
+  приложения, не core. Исправлено: добавлен опциональный интерфейс
+  `App\Core\Contracts\ProvidesHistoryBounds` (метод `historyEnd():
+  DateTimeImmutable`), `MockAdapter` его реализует; `resolvePeriod` проверяет
+  `instanceof ProvidesHistoryBounds` вместо `instanceof MockAdapter`.
+  Контракт `DataSourceAdapter` не расширялся — реальный источник конец
+  истории сообщить не обязан (решение этапа 07). Регрессионный тест на
+  случай адаптера без этого интерфейса (будущие
+  Bitrix24Adapter/OneCAdapter) — см. `docs/reports/resolve-period-history-bounds.md`.
 
 ## Хвосты этапа 11 (без номера этапа)
 
