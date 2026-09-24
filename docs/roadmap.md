@@ -222,8 +222,9 @@
 Репозиторий подключён к GitHub (`AlRazumov/analytics_skeleton`). PR
 `stage-14-review-fixes` → `master` слит fast-forward 2026-09-24 (полный
 прогон перед слиянием: 473 теста, 96 408 assertions): `master` содержит
-этапы 00–14, 17 и фиксы после них. Дальнейшая работа — в ветках от
-`master` (этап 18 — `stage-18-sellers-page`).
+этапы 00–14, 17 и фиксы после них. Этап 18 (`stage-18-sellers-page`)
+слит в `master` через PR тем же способом (fast-forward) 2026-09-24.
+Дальнейшая работа — в ветках от `master`.
 
 Прочие `stage-*`-ветки на GitHub — промежуточные точки той же линии
 истории (все — предки `master`, кроме `backup/stage6-contracts` —
