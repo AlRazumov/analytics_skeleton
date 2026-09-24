@@ -188,6 +188,17 @@
   случай адаптера без этого интерфейса (будущие
   Bitrix24Adapter/OneCAdapter) — см. `docs/reports/resolve-period-history-bounds.md`.
 
+- ✅ closed (2026-09-24): CI на GitHub (`.github/workflows/tests.yml`, достался
+  от заготовки Laravel) падал на каждом push: матрица PHP 8.3/8.4/8.5 при
+  `composer.lock` под Symfony 8.1 (нужен PHP ≥ 8.4.1) — на 8.3 не ставились
+  зависимости, `fail-fast` отменял остальные; тесты шли бы на SQLite, а
+  проект рассчитан на Postgres. Исправлено: одна конфигурация как в Sail
+  (PHP 8.5, service Postgres 18, БД `testing`), шаг `pint --test`, полный
+  прогон с группой slow; `composer.json` — `php: ^8.4` (честное требование
+  lock-файла, пакеты не менялись). Остальные workflow заготовки Laravel
+  (`issues`, `pull-requests`, `update-changelog`, `dependabot-auto-merge`)
+  к проекту не относятся — удалить на усмотрение владельца.
+
 ## Хвосты этапа 11 (без номера этапа)
 
 Не новый этап: нумерация и статусы этапов 12/13 не меняются. Отчёт —
