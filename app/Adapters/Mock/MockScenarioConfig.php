@@ -6,7 +6,7 @@ namespace App\Adapters\Mock;
  * Сколько товаров MockAdapter отводит под каждый эталонный сценарий
  * (см. MockScenarioManifest). Сценарные товары занимают первые id
  * (prod-1, prod-2, ...) в порядке: dead, near_zero, gaps, spike,
- * seasonal, imbalance; остальные — обычные.
+ * seasonal, imbalance, lost_sales, no_sales_donor; остальные — обычные.
  */
 final readonly class MockScenarioConfig
 {
@@ -30,7 +30,7 @@ final readonly class MockScenarioConfig
         /**
          * Товаров с «потерянными продажами»: продавались в предпоследнем
          * месяце окна истории, в последнем — ни одной сделки (сценарий для
-         * метрики LostSalesCalculator, см. MockAdapter::isLostSalesProduct).
+         * метрики LostSalesCalculator, см. MockAdapter::lostSalesGuaranteedDeals).
          * Не связан со стоком/движениями — влияет только на fetchDeals().
          */
         public int $lostSalesCount = 0,

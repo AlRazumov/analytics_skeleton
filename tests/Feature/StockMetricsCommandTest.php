@@ -1,5 +1,6 @@
 <?php
 
+use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -69,4 +70,28 @@ it('overwrites OLD turnover values of the recalculated month without hitting the
     expect($rows)->toHaveCount(1)
         ->and((float) $rows[0]->value)->not->toBe(999.0)
         ->and(collect($rows[0]->value_meta)->keys()->sort()->values()->all())->toBe(['avg_stock', 'closing_stock', 'opening_stock', 'units_sold']);
+});
+
+it('keeps the previous snapshots when writing the new ones fails', function () {
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-08:2026-08'])->assertExitCode(0);
+    $before = MetricsSnapshot::query()->count();
+
+    app()->instance(MetricsSnapshotWriter::class, new class implements MetricsSnapshotWriter
+    {
+        public function write(array $records): void
+        {
+            MetricsSnapshot::query()->insert([
+                'entity_type' => 'product', 'entity_id' => 'partial', 'metric_key' => 'revenue', 'value' => 1.0,
+                'period_type' => 'month', 'period_start' => '2026-08-01', 'period_end' => '2026-08-31',
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            throw new RuntimeException('write failed');
+        }
+    });
+
+    expect(fn () => $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-08:2026-08'])->run())
+        ->toThrow(RuntimeException::class, 'write failed')
+        ->and(MetricsSnapshot::query()->count())->toBe($before)
+        ->and(MetricsSnapshot::query()->where('entity_id', 'partial')->exists())->toBeFalse();
 });

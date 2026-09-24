@@ -15,6 +15,7 @@ use App\Models\MetricsSnapshot;
 use App\Sync\ReferenceSyncService;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -80,8 +81,11 @@ class CalculateMetrics extends Command
 
         $records = $service->calculate($adapter, $dateRange);
 
-        $this->deleteExistingSnapshots($dateRange);
-        $writer->write($records);
+        // Удаление и запись — одной транзакцией: сбой записи не оставляет месяцы пустыми или обрезанными.
+        DB::transaction(function () use ($dateRange, $writer, $records): void {
+            $this->deleteExistingSnapshots($dateRange);
+            $writer->write($records);
+        });
 
         $this->info(sprintf('Готово: записано снэпшотов — %d.', count($records)));
 

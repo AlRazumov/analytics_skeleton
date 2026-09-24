@@ -80,7 +80,25 @@ it('does not treat transfers, receipts, writeoffs and adjustments as demand, but
     // Остаток на конец: 100 − 10 − 20 − 5 + 3 + 12 = 80; спрос 10 / 28 дней.
     expect($records['p1:w1']->valueMeta)->toMatchArray(['stock_qty' => 80.0, 'in_stock_days' => 28])
         ->and($records['p1:w1']->value)->toBe(80.0 / (10 / 28))
-        ->and($records)->toHaveCount(1); // w2 продаж не имела
+        ->and($records)->toHaveCount(2)
+        // w2 продаж не имела: только остаток от перемещения.
+        ->and($records['p1:w2']->metricKey)->toBe(DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY)
+        ->and($records['p1:w2']->value)->toBe(20.0);
+});
+
+it('writes stock_no_demand for a pair that opened the window at zero and received stock inside it', function () {
+    [$records, $calc] = daysOfStock([stockMove('2026-03-15', 'p1', 'w1', T::Receipt, 30)], []);
+
+    expect($records)->toHaveCount(1)
+        ->and($records['p1:w1']->metricKey)->toBe(DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY)
+        ->and($records['p1:w1']->value)->toBe(30.0)
+        ->and($calc->lastSkipped['no_demand'])->toBe(1);
+});
+
+it('neither writes nor counts a pair that had no stock at all in the window', function () {
+    [$records, $calc] = daysOfStock([stockMove('2026-03-15', 'p1', 'w1', T::Adjustment, -3)], []);
+
+    expect($records)->toBe([])->and($calc->lastSkipped['no_demand'])->toBe(0);
 });
 
 it('excludes zero-stock days from the denominator', function () {
