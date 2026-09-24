@@ -27,6 +27,7 @@
 | 16 | OneCAdapter | — | not planned (отложен на неопределённый срок; заказчик тянет время, может не состояться) | 06 |
 | 17 | Продавцы (Seller): справочник, метрики по реестру, топ-N на обзоре; на моке, без реальных адаптеров | stages/stage-17-sellers.md | done (см. reports/stage-17-sellers.md) | 06, 13 |
 | 18 | Страница продавцов (выбор метрики `?metric=`) и CSV-выгрузка | stages/stage-18-sellers-page.md | done (см. reports/stage-18-sellers-page.md) | 17 |
+| 19 | Проверка контракта DataSourceAdapter: AdapterContractChecker, команда `adapter:check` | stages/stage-19-adapter-contract.md | done (см. reports/stage-19-adapter-contract.md) | 06, 17 |
 
 ## TODO before real adapters
 
@@ -211,13 +212,16 @@
 
 ## Статус проекта (обновлено 2026-09-24)
 
-Выполнены этапы 00–14, 17 и 18; все Known issues закрыты (потерянные продажи
+Выполнены этапы 00–14, 17, 18 и 19; все Known issues закрыты (потерянные продажи
 и донор без продаж — демо-эвристиками, финальное решение — при реальном
 клиенте). Этапы 15 (`Bitrix24Adapter`) и 16 (`OneCAdapter`) — not planned,
 ждут появления реального клиента.
 
 Что ещё можно делать без клиента (необязательно):
 
+- статический анализ (Larastan) шагом в CI;
+- инструкция по развёртыванию без Sail (nginx/php-fpm, cron для
+  `metrics:calculate`, пользователи);
 - открытые вопросы отчёта этапа 14 (`reports/stage-14-transfer-recommendations.md`,
   §10, п. 1–3) — продуктовые решения, не баги;
 - экспорт остальных страниц (сейчас CSV только у продавцов, этап 18);
@@ -226,7 +230,8 @@
 Что ждёт клиента: реальные адаптеры и IframeLayout, `SellerResolver` для 1С
 (запрос подрядчику — `reports/stage-17-sellers.md`, §7), признак возврата в
 `Deal`, запись сделок в `staging_deals`, пороги демо-эвристик на реальных
-данных, решение о выделении namespace'ов widgets/presentation.
+данных, решение о выделении namespace'ов widgets/presentation. Первый шаг
+с реальным источником — `adapter:check` (правила — `docs/adapter-contract.md`).
 
 ## Git/GitHub (обновлено 2026-09-24)
 

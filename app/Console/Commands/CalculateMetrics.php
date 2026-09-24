@@ -4,11 +4,11 @@ namespace App\Console\Commands;
 
 use App\Adapters\DataSourceAdapterFactory;
 use App\Adapters\Mock\MockDataProfile;
+use App\Console\Commands\Concerns\ResolvesMonthRange;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Contracts\DataSourceAdapter;
-use App\Core\Contracts\ProvidesHistoryBounds;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsSnapshot;
@@ -26,6 +26,8 @@ use InvalidArgumentException;
  */
 class CalculateMetrics extends Command
 {
+    use ResolvesMonthRange;
+
     protected $signature = 'metrics:calculate {--profile= : Профиль мока (только при analytics.source=mock)} {--period=}';
 
     protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover) из DataSourceAdapter в metrics_snapshots';
@@ -101,41 +103,7 @@ class CalculateMetrics extends Command
 
     private function resolvePeriod(?string $value, DataSourceAdapter $adapter): DateRange
     {
-        if ($value === null || $value === '') {
-            // Адаптеры с фиксированным (не «до сегодня») концом истории —
-            // например MockAdapter — отдают данные только до historyEnd(),
-            // поэтому по умолчанию берём 12 месяцев, заканчивающихся на нём.
-            // Для источников без такого ограничения — 12 месяцев, заканчивающихся текущим.
-            if ($adapter instanceof ProvidesHistoryBounds) {
-                $end = $adapter->historyEnd();
-
-                return new DateRange(
-                    (new DateTimeImmutable($end->format('Y-m-01')))->modify('-11 months'),
-                    $end,
-                );
-            }
-
-            $now = new DateTimeImmutable('first day of this month');
-
-            return new DateRange($now->modify('-11 months'), $now->modify('last day of this month'));
-        }
-
-        if (! preg_match('/^(\d{4}-\d{2}):(\d{4}-\d{2})$/', $value, $matches)) {
-            throw new InvalidArgumentException("Неверный формат --period='{$value}'. Ожидается 'YYYY-MM:YYYY-MM'.");
-        }
-
-        try {
-            $start = new DateTimeImmutable($matches[1].'-01');
-            $end = new DateTimeImmutable($matches[2].'-01');
-        } catch (\Exception) {
-            throw new InvalidArgumentException("Неверный формат --period='{$value}'. Ожидается 'YYYY-MM:YYYY-MM'.");
-        }
-
-        if ($start > $end) {
-            throw new InvalidArgumentException("Неверный --period='{$value}': начало периода позже конца.");
-        }
-
-        return new DateRange($start, $end->modify('last day of this month'));
+        return $this->monthRange($value, $adapter, 12);
     }
 
     private function deleteExistingSnapshots(DateRange $dateRange): void

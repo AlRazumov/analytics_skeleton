@@ -73,6 +73,8 @@ stage-03-report.md`). Выделение отдельных namespace'ов — �
 `DataSourceAdapter` через неё. Справочники товаров и складов копируются в БД
 командой `reference:sync` (и автоматически перед `metrics:calculate`);
 веб-страницы берут названия из БД и к адаптеру не обращаются.
+Новый адаптер обязан проходить `adapter:check` — правила контракта в
+[docs/adapter-contract.md](docs/adapter-contract.md).
 
 ## Тесты
 
