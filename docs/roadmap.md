@@ -198,7 +198,9 @@
   прогон с группой slow; `composer.json` — `php: ^8.4` (честное требование
   lock-файла, пакеты не менялись). Остальные workflow заготовки Laravel
   (`issues`, `pull-requests`, `update-changelog`, `dependabot-auto-merge`)
-  к проекту не относятся — удалить на усмотрение владельца.
+  к проекту не относятся — удалить на усмотрение владельца. Удалены
+  2026-09-24; `.github/dependabot.yml` (еженедельные обновления
+  GitHub Actions) оставлен.
 
 - ✅ closed (2026-09-24): статического анализа не было. Подключён Larastan
   (`phpstan.neon`, уровень 8, `app/`), шаг в CI; без baseline и
