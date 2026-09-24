@@ -60,7 +60,8 @@ final class DaysOfStockCalculator
      * из-за отсутствия спроса (нет ни одной продажи в окне) — единственный
      * источник знания об остатке таких пар, нужен TransferRecommendationService
      * для донора «по остатку», а не по обороту. Пишется, только когда
-     * итоговый остаток на конец месяца положителен.
+     * итоговый остаток на конец месяца положителен — в том числе для пар,
+     * начавших окно с нуля и получивших товар внутри окна.
      */
     public const NO_DEMAND_STOCK_METRIC_KEY = 'stock_no_demand';
 
@@ -109,15 +110,22 @@ final class DaysOfStockCalculator
                 }
             }
 
-            foreach ($opening as $key => $quantity) {
-                if ($quantity > self::EPSILON && ! isset($saleByDay[$key])) {
-                    $this->lastSkipped['no_demand']++;
+            // Пары без продаж — и с остатком на начало окна, и получившие
+            // товар внутри окна (приход/перемещение на склад с нуля).
+            foreach (array_keys($opening + $deltaByDay) as $key) {
+                if (isset($saleByDay[$key])) {
+                    continue;
+                }
 
-                    $finalStock = $quantity;
-                    for ($day = 0; $day < $this->windowDays; $day++) {
-                        $finalStock += $deltaByDay[$key][$day] ?? 0.0;
-                    }
-                    $finalStock = max(0.0, $finalStock);
+                $quantity = $opening[$key] ?? 0.0;
+                $finalStock = $quantity;
+                for ($day = 0; $day < $this->windowDays; $day++) {
+                    $finalStock += $deltaByDay[$key][$day] ?? 0.0;
+                }
+                $finalStock = max(0.0, $finalStock);
+
+                if ($quantity > self::EPSILON || $finalStock > self::EPSILON) {
+                    $this->lastSkipped['no_demand']++;
 
                     if ($finalStock > self::EPSILON) {
                         $records[] = new MetricsSnapshotRecord(

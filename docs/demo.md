@@ -11,7 +11,8 @@ cp .env.example .env
 # в .env: DB_CONNECTION=pgsql, DB_HOST=pgsql, DB_PORT=5432, DB_DATABASE=laravel,
 # DB_USERNAME/DB_PASSWORD — как в compose.yaml (Sail); APP_URL — адрес приложения.
 # Необязательно (значения по умолчанию): ANALYTICS_SOURCE=mock,
-# ANALYTICS_MOCK_PROFILE=small|medium, ANALYTICS_MOCK_SEED=42
+# ANALYTICS_MOCK_PROFILE=small|medium, ANALYTICS_MOCK_SEED=42,
+# ANALYTICS_MOCK_SELLER_COVERAGE=full|partial|none (сколько сделок несут продавца)
 
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan key:generate
