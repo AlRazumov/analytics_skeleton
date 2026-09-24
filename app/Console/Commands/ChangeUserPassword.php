@@ -5,12 +5,14 @@ namespace App\Console\Commands;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * Меняет пароль существующего пользователя standalone-части. Пароль
  * запрашивается интерактивно (secret + подтверждение) и НЕ принимается
  * ни аргументом, ни опцией — иначе он попадал бы в историю shell.
- * Хэшируется штатным cast'ом hashed модели User.
+ * Хэшируется штатным cast'ом hashed модели User. Открытые сессии и
+ * cookie «запомнить меня» после смены пароля перестают действовать.
  */
 class ChangeUserPassword extends Command
 {
@@ -46,7 +48,9 @@ class ChangeUserPassword extends Command
             return self::FAILURE;
         }
 
-        $user->update(['password' => $password]);
+        // Новый remember_token гасит cookie «запомнить меня»; уже открытые
+        // сессии разлогинивает middleware auth.session (сверяет хэш пароля).
+        $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
 
         $this->info("Пароль пользователя {$email} изменён.");
 

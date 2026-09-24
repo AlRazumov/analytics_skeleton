@@ -7,12 +7,12 @@ use App\Sync\ReferenceSyncService;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
-/** Загружает справочники товаров и складов из источника (analytics.source) в БД. */
+/** Загружает справочники товаров, складов и продавцов из источника (analytics.source) в БД. */
 class SyncReferences extends Command
 {
     protected $signature = 'reference:sync';
 
-    protected $description = 'Синхронизировать справочники товаров и складов из источника данных в БД';
+    protected $description = 'Синхронизировать справочники товаров, складов и продавцов из источника данных в БД';
 
     public function handle(ReferenceSyncService $sync): int
     {
@@ -24,7 +24,7 @@ class SyncReferences extends Command
             return self::FAILURE;
         }
 
-        $this->info("Справочники синхронизированы: товаров — {$counts['products']}, складов — {$counts['warehouses']}.");
+        $this->info("Справочники синхронизированы: товаров — {$counts['products']}, складов — {$counts['warehouses']}, продавцов — {$counts['sellers']}.");
 
         return self::SUCCESS;
     }

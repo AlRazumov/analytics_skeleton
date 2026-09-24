@@ -113,9 +113,9 @@ return [
     */
 
     'limiters' => [
+        // Только вход: 2FA и passkeys выключены (features = []). При их
+        // включении добавить лимитеры сюда и в FortifyServiceProvider.
         'login' => 'login',
-        'two-factor' => 'two-factor',
-        'passkeys' => 'passkeys',
     ],
 
     /*

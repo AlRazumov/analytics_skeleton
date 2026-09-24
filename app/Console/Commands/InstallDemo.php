@@ -24,7 +24,7 @@ class InstallDemo extends Command
     protected $description = 'Подготовить демо на данных мока: справочники, расчёт метрик, при --email — пользователь';
 
     /** @var list<string> */
-    private const array REQUIRED_TABLES = ['users', 'metrics_snapshots', 'staging_products', 'staging_warehouses'];
+    private const array REQUIRED_TABLES = ['users', 'metrics_snapshots', 'staging_products', 'staging_warehouses', 'staging_sellers'];
 
     public function handle(DataSourceAdapterFactory $factory): int
     {

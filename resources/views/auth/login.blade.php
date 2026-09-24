@@ -2,7 +2,7 @@
     <div class="widget login-card">
         <h1>Вход</h1>
 
-        <form method="POST" action="{{ route('login') }}">
+        <form method="POST" action="{{ route('login.store') }}">
             @csrf
 
             <label for="email">Email</label>

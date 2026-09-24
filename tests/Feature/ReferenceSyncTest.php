@@ -139,7 +139,9 @@ it('survives a duplicate id inside one chunk (the last one wins)', function () {
 it('runs reference:sync from the configured source and syncs before metrics:calculate', function () {
     config(['analytics.mock.profile' => 'small']);
 
-    $this->artisan('reference:sync')->expectsOutputToContain('товаров — 50')->assertExitCode(0);
+    $this->artisan('reference:sync')
+        ->expectsOutputToContain('продавцов — ')
+        ->assertExitCode(0);
     expect(StagingProduct::count())->toBe(50);
 
     StagingProduct::query()->delete();

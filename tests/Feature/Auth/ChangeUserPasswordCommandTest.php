@@ -61,3 +61,25 @@ it('does not accept the password as an argument or option', function () {
     expect(array_keys($definition->getArguments()))->toBe(['email'])
         ->and(array_keys($definition->getOptions()))->not->toContain('password');
 });
+
+it('logs out sessions opened before the password change and resets the remember token', function () {
+    $user = User::factory()->create([
+        'email' => 'anna@example.com', 'password' => 'old-password-123', 'remember_token' => 'old-remember-token',
+    ]);
+
+    $this->post('/login', ['email' => 'anna@example.com', 'password' => 'old-password-123']);
+    $this->get('/dashboards/overview')->assertOk();
+
+    $this->artisan('users:password', ['email' => 'anna@example.com'])
+        ->expectsQuestion('Новый пароль (минимум 12 символов)', 'brand-new-password')
+        ->expectsQuestion('Повторите пароль', 'brand-new-password')
+        ->assertExitCode(0);
+
+    // В тестах guard живёт между запросами и держит старую модель; в реальном
+    // запросе пользователь каждый раз читается из БД.
+    auth()->forgetGuards();
+
+    $this->get('/dashboards/overview')->assertRedirect('/login');
+    $this->assertGuest();
+    expect($user->fresh()->remember_token)->not->toBe('old-remember-token');
+});

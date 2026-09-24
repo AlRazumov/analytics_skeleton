@@ -14,8 +14,9 @@ Route::redirect('/', '/dashboards/overview');
 
 // Standalone-часть (StandaloneLayout на данных metrics_snapshots) — только
 // для вошедших пользователей. Будущая iframe-группа сюда не входит: её
-// авторизация — задача этапа Bitrix24Adapter.
-Route::middleware('auth')->group(function () {
+// авторизация — задача этапа Bitrix24Adapter. auth.session разлогинивает
+// сессии, открытые до смены пароля (users:password).
+Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/dashboards/overview', OverviewDashboardController::class)->name('dashboards.overview');
     Route::get('/dashboards/abc-xyz', AbcXyzDashboardController::class)->name('dashboards.abc-xyz');
 
