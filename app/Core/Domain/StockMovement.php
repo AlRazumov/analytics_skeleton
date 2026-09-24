@@ -23,6 +23,9 @@ use InvalidArgumentException;
  */
 final readonly class StockMovement
 {
+    /**
+     * @param  array<string, mixed>  $meta
+     */
     public function __construct(
         public string $id,
         public string $productId,

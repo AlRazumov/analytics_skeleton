@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $entity_id
  * @property string $metric_key
  * @property float $value
- * @property array|null $value_meta
+ * @property array<string, mixed>|null $value_meta
  * @property string $period_type
  * @property CarbonImmutable $period_start
  * @property CarbonImmutable $period_end

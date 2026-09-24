@@ -27,7 +27,7 @@ class TurnoverDashboardController extends Controller
         return view('dashboards.turnover', [
             'lowest' => $lowest,
             'highest' => $period === null ? $lowest : $tables->turnover($period, Direction::Desc, $limit),
-            'distribution' => $period === null ? null : $charts->turnoverDistribution($period, array_map('floatval', config('analytics.display.turnover_bounds'))),
+            'distribution' => $period === null ? null : $charts->turnoverDistribution($period, array_values(array_map('floatval', (array) config('analytics.display.turnover_bounds')))),
         ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Core\Domain\Enums\PeriodGranularity;
 use DateTimeImmutable;
 use DateTimeInterface;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * Один календарный период фиксированной гранулярности.
@@ -136,7 +137,8 @@ final readonly class Period
 
         return self::containing(
             PeriodGranularity::Week,
-            self::isoWeekStart($isoYear, min($week, $lastWeek)),
+            self::isoWeekStart($isoYear, min($week, $lastWeek))
+                ?? throw new LogicException("Нет ISO-недели {$week} в {$isoYear} году."),
         );
     }
 
@@ -154,17 +156,17 @@ final readonly class Period
                 return [$start, $start->modify('+6 days')];
             })(),
             PeriodGranularity::Month => [
-                self::parseDate(sprintf('%04d-%02d-01', $year, $month)),
-                self::parseDate(sprintf('%04d-%02d-01', $year, $month))->modify('last day of this month'),
+                self::date(sprintf('%04d-%02d-01', $year, $month)),
+                self::date(sprintf('%04d-%02d-01', $year, $month))->modify('last day of this month'),
             ],
             PeriodGranularity::Quarter => (function () use ($year, $month) {
-                $start = self::parseDate(sprintf('%04d-%02d-01', $year, intdiv($month - 1, 3) * 3 + 1));
+                $start = self::date(sprintf('%04d-%02d-01', $year, intdiv($month - 1, 3) * 3 + 1));
 
                 return [$start, $start->modify('+2 months')->modify('last day of this month')];
             })(),
             PeriodGranularity::Year => [
-                self::parseDate(sprintf('%04d-01-01', $year)),
-                self::parseDate(sprintf('%04d-12-31', $year)),
+                self::date(sprintf('%04d-01-01', $year)),
+                self::date(sprintf('%04d-12-31', $year)),
             ],
         };
     }
@@ -183,9 +185,9 @@ final readonly class Period
 
     private static function clampedDate(int $year, int $month, int $day): DateTimeImmutable
     {
-        $last = (int) self::parseDate(sprintf('%04d-%02d-01', $year, $month))->format('t');
+        $last = (int) self::date(sprintf('%04d-%02d-01', $year, $month))->format('t');
 
-        return self::parseDate(sprintf('%04d-%02d-%02d', $year, $month, min($day, $last)));
+        return self::date(sprintf('%04d-%02d-%02d', $year, $month, min($day, $last)));
     }
 
     private static function parseDate(string $ymd): ?DateTimeImmutable
@@ -196,8 +198,15 @@ final readonly class Period
         return $date !== false && $date->format('Y-m-d') === $ymd ? $date : null;
     }
 
+    /** Дата, собранная кодом из заведомо валидных частей; невалидная — ошибка программы. */
+    private static function date(string $ymd): DateTimeImmutable
+    {
+        return self::parseDate($ymd) ?? throw new LogicException("Невалидная дата {$ymd}.");
+    }
+
+    /** Полночь той же календарной даты в часовом поясе по умолчанию. */
     private static function toDate(DateTimeInterface $date): DateTimeImmutable
     {
-        return DateTimeImmutable::createFromFormat('!Y-m-d', $date->format('Y-m-d'));
+        return self::date($date->format('Y-m-d'));
     }
 }

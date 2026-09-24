@@ -22,6 +22,7 @@ use App\Core\Domain\Warehouse;
 use DateTimeImmutable;
 use Generator;
 use InvalidArgumentException;
+use LogicException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
@@ -609,7 +610,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         $dead = $kind === 'dead';
         // Мёртвый товар живёт обычной жизнью до дня последней продажи (включительно), дальше движений нет.
         $lastDay = $dead
-            ? $this->historyDays - 1 - $this->deadAgeFor(array_search($index, $this->productIndexesOf('dead'), true))
+            ? $this->historyDays - 1 - $this->deadAgeFor($this->positionOf('dead', $index))
             : $this->historyDays - 1;
 
         for ($day = 0; $day <= min($toDay, $lastDay); $day++) {
@@ -625,7 +626,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             }
 
             if ($warehouseCount > 1 && $random->getInt(1, 45) === 1) {
-                $from = array_search(max($stock), $stock, true);
+                $from = self::fullest($stock);
                 $to = ($from + $random->getInt(1, $warehouseCount - 1)) % $warehouseCount;
                 if ($stock[$from] >= 2) {
                     $quantity = $random->getInt(1, intdiv($stock[$from], 2));
@@ -658,7 +659,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
                 // списаний и корректировок после неё нет. После пополнения (см. выше)
                 // остаток на каждом складе >= точки заказа, поэтому в сумме он остаётся > 0.
                 if (! $soldToday) {
-                    $w = array_search(max($stock), $stock, true);
+                    $w = self::fullest($stock);
                     $stock[$w] -= 1;
                     if ($day >= $fromDay) {
                         yield $emit($day, 12, $w, StockMovementType::Sale, -1);
@@ -700,7 +701,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
      */
     private function nearZeroMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
     {
-        [$rate, $daysLeft] = $this->nearZeroParams(array_search($index, $this->productIndexesOf('near_zero'), true));
+        [$rate, $daysLeft] = $this->nearZeroParams($this->positionOf('near_zero', $index));
 
         yield from $this->constantSales($fromDay, $toDay, $emit, [
             [0, $this->historyDays, $rate, $rate * ($this->historyDays + $daysLeft)],
@@ -754,7 +755,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
      */
     private function imbalanceMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
     {
-        $p = $this->imbalanceParams(array_search($index, $this->productIndexesOf('imbalance'), true));
+        $p = $this->imbalanceParams($this->positionOf('imbalance', $index));
         $sides = [
             [$p['surplus_warehouse'], $p['surplus_rate'], $p['surplus_days']],
             [$p['deficit_warehouse'], $p['deficit_rate'], $p['deficit_days']],
@@ -803,7 +804,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
      */
     private function noSalesDonorMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
     {
-        $p = $this->noSalesDonorParams(array_search($index, $this->productIndexesOf('no_sales_donor'), true));
+        $p = $this->noSalesDonorParams($this->positionOf('no_sales_donor', $index));
 
         if ($fromDay <= 0) {
             yield $emit(0, 8, $p['donor_warehouse'], StockMovementType::Receipt, $p['donor_stock']);
@@ -910,6 +911,33 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         [$first, $last] = $this->kindRanges[$kind];
 
         return $first > $last ? [] : range($first, $last);
+    }
+
+    /** Порядковый номер товара внутри сценария $kind (0 — первый товар сценария). */
+    private function positionOf(string $kind, int $index): int
+    {
+        $position = array_search($index, $this->productIndexesOf($kind), true);
+
+        return $position === false
+            ? throw new LogicException("Товар {$index} не относится к сценарию {$kind}.")
+            : $position;
+    }
+
+    /**
+     * Склад с наибольшим остатком (первый при равенстве).
+     *
+     * @param  array<int, int>  $stock
+     */
+    private static function fullest(array $stock): int
+    {
+        $best = 0;
+        foreach ($stock as $w => $quantity) {
+            if ($quantity > $stock[$best]) {
+                $best = $w;
+            }
+        }
+
+        return $best;
     }
 
     /** Индекс дня от начала окна истории (может быть < 0 или ≥ длины). */

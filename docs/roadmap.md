@@ -200,6 +200,19 @@
   (`issues`, `pull-requests`, `update-changelog`, `dependabot-auto-merge`)
   к проекту не относятся — удалить на усмотрение владельца.
 
+- ✅ closed (2026-09-24): статического анализа не было. Подключён Larastan
+  (`phpstan.neon`, уровень 8, `app/`), шаг в CI; без baseline и
+  `@phpstan-ignore` — все 63 замечания исправлены в коде. По существу:
+  `TopNCsv` не проверял результат `fopen`; `Period` молча получал `null` на
+  невалидной дате вместо ошибки; `AppServiceProvider` не проверял, что классы
+  из `analytics.metrics.seller` реализуют `SellerMetric`; `demo:install`
+  полагался на `assert` вместо явной проверки на `MockAdapter`;
+  `bucketCounts` собирал SQL из нелитеральных строк (теперь — только
+  литералы и биндинги, один запрос, `json_build_array`). Остальное —
+  уточнение типов (`array<string, mixed>` для meta, list/array-key и т.п.).
+  В `AdapterContractChecker` выдача адаптера явно типизирована как
+  недоверенная (`mixed`), чтобы проверки типов не выглядели «всегда true».
+
 ## Хвосты этапа 11 (без номера этапа)
 
 Не новый этап: нумерация и статусы этапов 12/13 не меняются. Отчёт —
@@ -219,7 +232,6 @@
 
 Что ещё можно делать без клиента (необязательно):
 
-- статический анализ (Larastan) шагом в CI;
 - инструкция по развёртыванию без Sail (nginx/php-fpm, cron для
   `metrics:calculate`, пользователи);
 - открытые вопросы отчёта этапа 14 (`reports/stage-14-transfer-recommendations.md`,

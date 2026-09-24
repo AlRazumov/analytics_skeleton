@@ -52,7 +52,11 @@ final class SellerSalesData
         return array_keys($this->byMonth);
     }
 
-    /** Ключи месяца; NO_SELLER присутствует всегда (нулевой, если таких продаж нет). */
+    /**
+     * Ключи месяца; NO_SELLER присутствует всегда (нулевой, если таких продаж нет).
+     *
+     * @return list<string>
+     */
     public function keys(string $month): array
     {
         return array_values(array_unique([...array_keys($this->byMonth[$month] ?? []), self::NO_SELLER]));

@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Adapters\DataSourceAdapterFactory;
 use App\Adapters\MockAdapter;
-use App\Core\Contracts\DataSourceAdapter;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -43,14 +42,18 @@ class InstallDemo extends Command
         }
 
         try {
-            $adapter = app(DataSourceAdapter::class);
+            $adapter = $factory->make();
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
             return self::FAILURE;
         }
-        // При source=mock фабрика всегда отдаёт MockAdapter.
-        assert($adapter instanceof MockAdapter);
+        // Окно демо берётся из истории мока (historyStart/historyEnd есть только у него).
+        if (! $adapter instanceof MockAdapter) {
+            $this->error('demo:install ожидает MockAdapter, фабрика вернула '.$adapter::class.'.');
+
+            return self::FAILURE;
+        }
 
         $email = mb_strtolower(trim((string) $this->option('email')));
         if ($this->option('email') !== null && $email === '') {

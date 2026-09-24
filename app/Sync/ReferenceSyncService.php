@@ -6,6 +6,7 @@ use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Staging\StagingProduct;
 use App\Core\Staging\StagingSeller;
 use App\Core\Staging\StagingWarehouse;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -52,38 +53,51 @@ final class ReferenceSyncService
     }
 
     /**
+     * @template T of object
+     *
      * @param  class-string<Model>  $model
+     * @param  iterable<T>  $items
+     * @param  callable(T): array<string, mixed>  $toRow  строка с ключом external_id
      * @param  list<string>  $updateColumns
      */
-    private function upsert(string $model, iterable $items, callable $toRow, array $updateColumns, $now): int
+    private function upsert(string $model, iterable $items, callable $toRow, array $updateColumns, CarbonInterface $now): int
     {
         $count = 0;
         $chunk = [];
 
-        $flush = function () use (&$chunk, $model, $updateColumns): void {
-            if ($chunk !== []) {
-                $model::query()->upsert(array_values($chunk), ['external_id'], [...$updateColumns, 'synced_at', 'updated_at']);
-                $chunk = [];
-            }
-        };
-
         foreach ($items as $item) {
             $row = $toRow($item) + ['synced_at' => $now, 'created_at' => $now, 'updated_at' => $now];
             // Дубль id внутри чанка ON CONFLICT не переживёт — побеждает последний.
-            $chunk[$row['external_id']] = $row;
+            $chunk[(string) $row['external_id']] = $row;
             $count++;
 
             if (count($chunk) >= self::CHUNK_SIZE) {
-                $flush();
+                $this->flush($model, $chunk, $updateColumns);
+                $chunk = [];
             }
         }
-        $flush();
+        $this->flush($model, $chunk, $updateColumns);
 
         return $count;
     }
 
+    /**
+     * @param  class-string<Model>  $model
+     * @param  array<array-key, array<string, mixed>>  $chunk
+     * @param  list<string>  $updateColumns
+     */
+    private function flush(string $model, array $chunk, array $updateColumns): void
+    {
+        if ($chunk !== []) {
+            $model::query()->upsert(array_values($chunk), ['external_id'], [...$updateColumns, 'synced_at', 'updated_at']);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
     private function json(array $meta): ?string
     {
-        return $meta === [] ? null : json_encode($meta, JSON_UNESCAPED_UNICODE);
+        return $meta === [] ? null : json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 }

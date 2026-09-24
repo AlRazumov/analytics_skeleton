@@ -27,12 +27,12 @@ class StockDashboardController extends Controller
         return view('dashboards.stock', [
             'deadStock' => config('analytics.features.dead_stock') ? $tables->deadStock($period, $deadDays, $limit) : null,
             'deadStockChart' => config('analytics.features.dead_stock')
-                ? $charts->deadStockAge($period, $deadDays, array_map('intval', config('analytics.display.dead_stock_age_bounds')))
+                ? $charts->deadStockAge($period, $deadDays, array_values(array_map('intval', (array) config('analytics.display.dead_stock_age_bounds'))))
                 : null,
             'deadStockDays' => $deadDays,
             'stockoutRisk' => config('analytics.features.stockout_risk') ? $tables->stockoutRisk($period, $riskDays, $limit) : null,
             'daysOfStockChart' => config('analytics.features.stockout_risk')
-                ? $charts->daysOfStock($period, array_map('intval', config('analytics.display.days_of_stock_bounds')))
+                ? $charts->daysOfStock($period, array_values(array_map('intval', (array) config('analytics.display.days_of_stock_bounds'))))
                 : null,
             'stockoutRiskDays' => $riskDays,
         ]);
