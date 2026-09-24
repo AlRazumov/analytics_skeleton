@@ -247,14 +247,15 @@
 
 ## Git/GitHub (обновлено 2026-09-24)
 
-Репозиторий подключён к GitHub (`AlRazumov/analytics_skeleton`). PR
-`stage-14-review-fixes` → `master` слит fast-forward 2026-09-24 (полный
-прогон перед слиянием: 473 теста, 96 408 assertions): `master` содержит
-этапы 00–14, 17 и фиксы после них. Этап 18 (`stage-18-sellers-page`)
-слит в `master` через PR тем же способом (fast-forward) 2026-09-24.
-Дальнейшая работа — в ветках от `master`.
+Репозиторий — GitHub `AlRazumov/analytics_skeleton`, основная ветка
+`master`. Работа ведётся в ветках от `master`, вливается через PR после
+зелёного CI (`.github/workflows/tests.yml`: PHP 8.5, Postgres 18, Pint,
+PHPStan, полный прогон тестов с группой slow). После слияния ветка удаляется
+на GitHub и локально.
 
-Промежуточные `stage*`-ветки (все — предки `master`) и резервная
-`backup/stage6-contracts` (ранний вариант этапа 06, в `master` не входил,
-последний коммит `b5f9419`) удалены на GitHub и локально 2026-09-24.
-Осталась только `master`.
+Что влито 2026-09-24: этапы 07–14 и 17 (PR `stage-14-review-fixes`,
+fast-forward), этап 18 (fast-forward), починка CI (PR #3), этап 19 (PR #4),
+Larastan (PR #5); PR #3–#5 слиты на GitHub merge-коммитом. Промежуточные
+`stage*`-ветки и резервная `backup/stage6-contracts` (ранний вариант этапа 06,
+в `master` не входил, последний коммит `b5f9419`) удалены. Сейчас в
+репозитории только `master`.
