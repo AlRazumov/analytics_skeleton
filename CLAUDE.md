@@ -42,8 +42,11 @@ stage-03-report.md`). Выделение отдельных namespace'ов — �
 
 ## Стек
 
-- Laravel + Pest (тестовый раннер)
-- Chart.js для виджетов
+- PHP 8.5, Laravel 13, Postgres 18 (локально — Laravel Sail)
+- Pest (тестовый раннер), Pint (стиль), Larastan (статический анализ, уровень 8)
+- Chart.js для виджетов (локальная копия в `public/vendor/chartjs`, без CDN)
+- CI — GitHub Actions (`.github/workflows/tests.yml`): Pint, PHPStan, все тесты
+  на Postgres; PR вливается только при зелёном CI
 
 ## Roadmap
 
