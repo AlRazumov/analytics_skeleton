@@ -114,6 +114,9 @@
                 @if (config('analytics.features.transfers'))
                     <a href="{{ route('dashboards.transfers') }}" @class(['is-active' => request()->routeIs('dashboards.transfers')])>Перемещения</a>
                 @endif
+                @if (config('analytics.features.sellers'))
+                    <a href="{{ route('dashboards.sellers') }}" @class(['is-active' => request()->routeIs('dashboards.sellers')])>Продавцы</a>
+                @endif
             </nav>
         @endunless
         <div class="header__user-slot">

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Dashboards\AbcXyzDashboardController;
 use App\Http\Controllers\Dashboards\OverviewDashboardController;
+use App\Http\Controllers\Dashboards\SellersDashboardController;
 use App\Http\Controllers\Dashboards\StockDashboardController;
 use App\Http\Controllers\Dashboards\TopProductsDashboardController;
 use App\Http\Controllers\Dashboards\TransfersDashboardController;
@@ -27,4 +28,8 @@ Route::middleware('auth')->group(function () {
         ->middleware('feature:turnover')->name('dashboards.turnover');
     Route::get('/dashboards/transfers', TransfersDashboardController::class)
         ->middleware('feature:transfers')->name('dashboards.transfers');
+    Route::get('/dashboards/sellers', SellersDashboardController::class)
+        ->middleware('feature:sellers')->name('dashboards.sellers');
+    Route::get('/dashboards/sellers/export', [SellersDashboardController::class, 'export'])
+        ->middleware('feature:sellers')->name('dashboards.sellers.export');
 });

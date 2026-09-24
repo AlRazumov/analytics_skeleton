@@ -13,6 +13,7 @@ const DEMO_PAGES = [
     '/dashboards/top-products',
     '/dashboards/turnover',
     '/dashboards/transfers',
+    '/dashboards/sellers',
 ];
 
 beforeEach(function () {
@@ -24,9 +25,11 @@ beforeEach(function () {
 it('serves every demo page with data after demo:install on Small', function () {
     foreach (DEMO_PAGES as $path) {
         $response = $this->get($path)->assertOk()->assertDontSee('Нет данных');
-        if ($path !== '/dashboards/abc-xyz') { // в матрице названий товаров нет
-            $response->assertSee('Product ');
-        }
+        match ($path) {
+            '/dashboards/abc-xyz' => null, // в матрице названий товаров нет
+            '/dashboards/sellers' => $response->assertSee('Продавец '),
+            default => $response->assertSee('Product '),
+        };
     }
 
     // Графики: canvas там, где они ожидаются.
@@ -36,7 +39,8 @@ it('serves every demo page with data after demo:install on Small', function () {
         ->and($canvases('/dashboards/stock'))->toBe(2)
         ->and($canvases('/dashboards/top-products'))->toBe(1)
         ->and($canvases('/dashboards/turnover'))->toBe(1)
-        ->and($canvases('/dashboards/transfers'))->toBe(0);
+        ->and($canvases('/dashboards/transfers'))->toBe(0)
+        ->and($canvases('/dashboards/sellers'))->toBe(1);
 });
 
 it('fills the data behind each page', function () {
@@ -52,6 +56,8 @@ it('fills the data behind each page', function () {
         ->and($top->viewData('topChart'))->not->toBeNull();
 
     expect($this->get('/dashboards/transfers')->viewData('transfers')->rows)->not->toBeEmpty();
+    expect($this->get('/dashboards/sellers')->viewData('data')->rows)->not->toBeEmpty();
+    $this->get('/dashboards/sellers/export')->assertOk()->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
 
     $stock = $this->get('/dashboards/stock');
     expect($stock->viewData('daysOfStockChart'))->not->toBeNull()

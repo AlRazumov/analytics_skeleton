@@ -1,6 +1,7 @@
 @php
     /** @var \App\Core\Widgets\DTO\TopNData|null $data */
     /** @var \App\Core\Widgets\DTO\LineChartData|null $chart */
+    /** @var string|null $title заголовок вместо «Топ-N: <метрика>» */
     $fmt = fn (string $key, float $v) => match ($key) {
         'sales_count' => \App\Support\Format::num($v, 0),
         'share_of_total', 'trend' => \App\Support\Format::num($v, 1).'%',
@@ -10,7 +11,7 @@
 @endphp
 @if ($data !== null)
     <div class="widget widget-table widget-top-n widget-top-n-{{ $data->entityType }}">
-        <h2>Топ-{{ $limit }}: {{ \App\Support\MetricLabels::label($data->metric) }}</h2>
+        <h2>{{ $title ?? 'Топ-'.$limit.': '.\App\Support\MetricLabels::label($data->metric) }}</h2>
 
         @if ($data->coverage === 'partial' && $data->coveragePercent !== null)
             <p class="widget-note widget-coverage">Данные по продавцам покрывают {{ round($data->coveragePercent) }}% продаж</p>
