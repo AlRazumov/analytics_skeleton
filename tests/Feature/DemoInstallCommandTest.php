@@ -66,3 +66,11 @@ it('tells to run migrate when tables are missing and does not migrate itself', f
 
     expect(Schema::hasTable('staging_warehouses'))->toBeFalse();
 });
+
+it('names a missing staging_sellers table instead of failing on a raw query', function () {
+    Schema::drop('staging_sellers');
+
+    $this->artisan('demo:install')
+        ->expectsOutputToContain('staging_sellers')
+        ->assertExitCode(1);
+});
