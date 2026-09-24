@@ -16,10 +16,15 @@
 | 2.2, 2.3 | подтверждены, латентно | open-пункт в Known issues `docs/roadmap.md` |
 | 3.3 | подтверждён частично | только без `?period` и только если у одной из метрик нет строк за последний месяц |
 | §6 `CreateUser` | **неверен** | email приводится к lowercase до валидации (`CreateUser.php:29`) |
+| §6 остальное | подтверждено | исправлено (PR #9): `auth.session` + сброс `remember_token` при смене пароля, сидер без пользователя, `login.store`, лимитеры Fortify, `staging_sellers` в `demo:install`, продавцы в выводе `reference:sync` |
 | §8 | в основном **неверен** | исторические записи не ошибки; исправлены только докблок `MockScenarioConfig` и `docs/demo.md` |
 
-Остальное (§3.1–3.2, 3.4, §4–§7) выборочно подтверждено, латентные мелочи —
-не правились.
+Остальное (§3.1–3.2, 3.4, §4, §5, §7) выборочно подтверждено, латентные
+мелочи — не правились. Отложены на следующую сессию: `.env.example` с SQLite
+(§4.1), нулевая серия «год назад» на обзоре (§3.1), форматирование чисел
+(§3.2) — см. «Статус проекта» в `docs/roadmap.md`.
+
+Исправления влиты: PR #7 (пп. 1.1, 2.1, доки), PR #9 (§6).
 
 ## Что прогнано
 
@@ -194,7 +199,7 @@
 ## 6. Команды / безопасность
 
 - `app/Console/Commands/ChangeUserPassword.php:49` — смена пароля не
-  инвалидирует сессии и `remember_token`.
+  инвалидирует сессии и `remember_token`. **Исправлено** (PR #9).
 - ~~`app/Console/Commands/CreateUser.php:35` — `Rule::unique('users','email')`
   регистрозависим, Fortify же приводит email к lowercase; дубль в другом
   регистре проскочит, а исходный аккаунт станет «недостижим» при логине.~~
@@ -202,17 +207,20 @@
   валидации (`CreateUser.php:29`), дубль в другом регистре невозможен.
 - `config/fortify.php:117-118` ссылается на лимитеры `two-factor`/`passkeys`,
   которые **не зарегистрированы** в `FortifyServiceProvider` (есть только
-  `login`) — при включении 2FA/passkeys будет runtime-ошибка.
+  `login`) — при включении 2FA/passkeys будет runtime-ошибка. **Исправлено** (PR #9):
+  лимитеры убраны из конфига.
 - `database/seeders/DatabaseSeeder.php` — пароль фабрики `'password'` (7 сим.)
-  ниже политики `users:create` (>= 12).
+  ниже политики `users:create` (>= 12). **Исправлено** (PR #9): сидер не
+  создаёт пользователей.
 - `resources/views/auth/login.blade.php:5` — POST на `route('login')` (GET-имя);
   работает только из-за совпадения URI `/login`, хрупкая связка
-  (корректнее `route('login.store')`).
+  (корректнее `route('login.store')`). **Исправлено** (PR #9).
 - `app/Console/Commands/InstallDemo.php:27` — `REQUIRED_TABLES` без
   `staging_sellers`; при отсутствии только этой таблицы — сырой PDO вместо
-  аккуратного сообщения.
+  аккуратного сообщения. **Исправлено** (PR #9).
 - `app/Console/Commands/SyncReferences.php:27` — вывод не упоминает продавцов,
   хотя `reference:sync` их синкает (`ReferenceSyncService.php:52`).
+  **Исправлено** (PR #9).
 
 ---
 
