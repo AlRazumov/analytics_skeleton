@@ -1,0 +1,9 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+# Статический анализ (Larastan): ./vendor/bin/sail php vendor/bin/phpstan analyse
+# Без baseline и без @phpstan-ignore — замечания исправляются в коде.
+parameters:
+    paths:
+        - app/
+    level: 8

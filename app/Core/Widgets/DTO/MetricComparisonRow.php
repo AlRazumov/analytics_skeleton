@@ -12,6 +12,9 @@ namespace App\Core\Widgets\DTO;
  */
 final readonly class MetricComparisonRow
 {
+    /**
+     * @param  array<string, mixed>  $valueMeta
+     */
     public function __construct(
         public string $entityType,
         public string $entityId,
@@ -22,6 +25,9 @@ final readonly class MetricComparisonRow
         public array $valueMeta = [],
     ) {}
 
+    /**
+     * @param  array<string, mixed>  $valueMeta
+     */
     public static function of(string $entityType, string $entityId, float $value, ?float $baseValue, array $valueMeta = []): self
     {
         $deltaAbs = $baseValue === null ? null : $value - $baseValue;

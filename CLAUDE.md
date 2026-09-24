@@ -86,6 +86,13 @@ stage-03-report.md`). Выделение отдельных namespace'ов — �
 ./vendor/bin/sail artisan test --group=slow          # только медленные
 ```
 
+Статический анализ (Larastan, уровень 8, `phpstan.neon`; без baseline и
+`@phpstan-ignore` — замечания исправляются в коде):
+
+```bash
+./vendor/bin/sail php vendor/bin/phpstan analyse --memory-limit=2G
+```
+
 Медленные интеграционные тесты на Medium-профиле мока помечены
 `->group('slow')` (Pest). Полный прогон без исключений остаётся эталоном
 перед коммитом этапа; исключение группы — только для быстрой обратной связи.

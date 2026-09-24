@@ -179,10 +179,10 @@ final class MetricsCalculationService
                 entityType: $record->entityType,
                 entityId: $record->entityId,
                 metricKey: $record->metricKey,
-                value: $existing?->value ?? $record->value,
-                period: $existing?->period ?? $record->period,
+                value: $existing->value ?? $record->value,
+                period: $existing->period ?? $record->period,
                 valueMeta: [
-                    ...($existing?->valueMeta ?? []),
+                    ...($existing->valueMeta ?? []),
                     ...$record->valueMeta,
                 ],
             );

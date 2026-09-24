@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Core\Widgets\DTO\TopNData;
 use App\Core\Widgets\DTO\TopNRow;
+use RuntimeException;
 
 /**
  * CSV-выгрузка топ-N под русский Excel: UTF-8 с BOM, разделитель «;»,
@@ -29,7 +30,7 @@ final class TopNCsv
             $lines[] = ['—', ...self::cells($data->unassigned, $data->metric, $columns)];
         }
 
-        $out = fopen('php://temp', 'r+');
+        $out = fopen('php://temp', 'r+') ?: throw new RuntimeException('Не удалось открыть php://temp для CSV.');
         foreach ($lines as $line) {
             fputcsv($out, $line, ';', '"', '');
         }

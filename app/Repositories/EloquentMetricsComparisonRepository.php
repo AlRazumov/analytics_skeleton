@@ -70,11 +70,11 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
                 ->orderByRaw(self::DELTA_PCT_SQL." {$direction}"),
         };
 
-        return $query->orderByRaw('cur.entity_id COLLATE "C" asc')
+        return array_values($query->orderByRaw('cur.entity_id COLLATE "C" asc')
             ->limit($limit)
             ->get()
             ->map(fn (object $row) => $this->toRow($entityType, $row))
-            ->all();
+            ->all());
     }
 
     public function count(
@@ -108,26 +108,30 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             return [];
         }
 
-        $selects = [];
+        // SQL собирается только из литеральных кусков (значения — биндинги),
+        // счётчики — одним json-массивом в порядке $ranges (json_build_array
+        // принимает до 100 аргументов — диапазонов на графиках единицы).
+        $counts = [];
         $bindings = [];
-        foreach ($ranges as $i => $range) {
-            $conditions = [];
+        foreach ($ranges as $range) {
+            $conditions = ['TRUE'];
             if ($range->min !== null) {
-                $conditions[] = 'cur.value '.($range->minInclusive ? '>=' : '>').' ?';
+                $conditions[] = $range->minInclusive ? 'cur.value >= ?' : 'cur.value > ?';
                 $bindings[] = $range->min;
             }
             if ($range->max !== null) {
-                $conditions[] = 'cur.value '.($range->maxInclusive ? '<=' : '<').' ?';
+                $conditions[] = $range->maxInclusive ? 'cur.value <= ?' : 'cur.value < ?';
                 $bindings[] = $range->max;
             }
-            $selects[] = 'COUNT(*) FILTER (WHERE '.($conditions === [] ? 'TRUE' : implode(' AND ', $conditions)).") AS b{$i}";
+            $counts[] = 'COUNT(*) FILTER (WHERE '.implode(' AND ', $conditions).')';
         }
 
-        $row = $this->current($metricKey, $entityType, $period)
-            ->selectRaw(implode(', ', $selects), $bindings)
-            ->first();
+        $json = $this->current($metricKey, $entityType, $period)
+            ->selectRaw('json_build_array('.implode(', ', $counts).') AS counts', $bindings)
+            ->value('counts');
+        $decoded = json_decode((string) $json, true, flags: JSON_THROW_ON_ERROR);
 
-        return array_map(static fn (int $i) => (int) $row->{"b{$i}"}, array_keys($ranges));
+        return array_map(static fn (mixed $n) => is_numeric($n) ? (int) $n : 0, is_array($decoded) ? array_values($decoded) : []);
     }
 
     public function rowsOfProductsWithValueAtMost(string $metricKey, string $entityType, Period $period, float $maxValue): iterable
@@ -138,17 +142,11 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
 
         $query = $this->current($metricKey, $entityType, $period)
             ->select('cur.entity_id', 'cur.value', 'cur.value_meta')
-            ->whereRaw("split_part(cur.entity_id, ':', 1) IN ({$deficitProducts->toSql()})", $deficitProducts->getBindings())
+            ->whereIn(DB::raw("split_part(cur.entity_id, ':', 1)"), $deficitProducts)
             ->orderByRaw('cur.entity_id COLLATE "C" asc');
 
         foreach ($query->cursor() as $row) {
-            yield MetricComparisonRow::of(
-                $entityType,
-                $row->entity_id,
-                (float) $row->value,
-                null,
-                $row->value_meta === null ? [] : (json_decode($row->value_meta, true) ?? []),
-            );
+            yield $this->toRow($entityType, $row);
         }
     }
 
@@ -197,14 +195,19 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             ->addSelect('base.value as base_value');
     }
 
+    /** Строка выборки query()/current(): entity_id, value, value_meta и (не всегда) base_value. */
     private function toRow(string $entityType, object $row): MetricComparisonRow
     {
+        $r = (array) $row;
+        $baseValue = $r['base_value'] ?? null;
+        $meta = $r['value_meta'] === null ? [] : json_decode((string) $r['value_meta'], true);
+
         return MetricComparisonRow::of(
             $entityType,
-            $row->entity_id,
-            (float) $row->value,
-            $row->base_value === null ? null : (float) $row->base_value,
-            $row->value_meta === null ? [] : (json_decode($row->value_meta, true) ?? []),
+            (string) $r['entity_id'],
+            (float) $r['value'],
+            $baseValue === null ? null : (float) $baseValue,
+            is_array($meta) ? $meta : [],
         );
     }
 }

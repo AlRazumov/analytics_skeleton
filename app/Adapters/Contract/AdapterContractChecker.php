@@ -50,9 +50,9 @@ final class AdapterContractChecker
         $this->counts = ['deals' => 0, 'products' => 0, 'warehouses' => 0, 'sellers' => 0, 'movements' => 0, 'balances' => 0];
 
         $capabilities = $this->guard('capabilities', fn () => $this->capabilities($adapter)) ?? [];
-        $products = $this->guard('products', fn () => $this->reference('products', $adapter->fetchProducts(), Product::class)) ?? [];
-        $warehouses = $this->guard('warehouses', fn () => $this->reference('warehouses', $adapter->fetchWarehouses(), Warehouse::class)) ?? [];
-        $sellers = $this->guard('sellers', fn () => $this->reference('sellers', $adapter->fetchSellers(), Seller::class)) ?? [];
+        $products = $this->guard('products', fn () => $this->reference('products', self::untrusted($adapter->fetchProducts()), Product::class)) ?? [];
+        $warehouses = $this->guard('warehouses', fn () => $this->reference('warehouses', self::untrusted($adapter->fetchWarehouses()), Warehouse::class)) ?? [];
+        $sellers = $this->guard('sellers', fn () => $this->reference('sellers', self::untrusted($adapter->fetchSellers()), Seller::class)) ?? [];
 
         $this->guard('deals', fn () => $this->deals($adapter, $range, $products, $sellers));
 
@@ -86,10 +86,15 @@ final class AdapterContractChecker
     /** @return list<AdapterCapability> */
     private function capabilities(DataSourceAdapter $adapter): array
     {
-        $list = $adapter->capabilities();
-        $valid = array_values(array_filter($list, static fn ($c) => $c instanceof AdapterCapability));
+        $list = self::untrustedValue($adapter->capabilities());
+        $valid = [];
+        foreach (is_array($list) ? $list : [] as $c) {
+            if ($c instanceof AdapterCapability) {
+                $valid[] = $c;
+            }
+        }
 
-        if (! array_is_list($list) || count($valid) !== count($list)) {
+        if (! is_array($list) || ! array_is_list($list) || count($valid) !== count($list)) {
             $this->fail('capabilities', 'capabilities() должен возвращать list<AdapterCapability>');
         }
         if (count(array_unique(array_map(static fn (AdapterCapability $c) => $c->value, $valid))) !== count($valid)) {
@@ -102,8 +107,11 @@ final class AdapterContractChecker
     /**
      * Справочник: элементы нужного класса, непустые уникальные id, непустые названия.
      *
-     * @param  class-string  $class
-     * @return array<string, true> множество id
+     * @template T of Product|Warehouse|Seller
+     *
+     * @param  iterable<mixed>  $items
+     * @param  class-string<T>  $class
+     * @return array<array-key, true> множество id (числовые id PHP хранит как int-ключи)
      */
     private function reference(string $name, iterable $items, string $class): array
     {
@@ -128,8 +136,8 @@ final class AdapterContractChecker
     }
 
     /**
-     * @param  array<string, true>  $products
-     * @param  array<string, true>  $sellers
+     * @param  array<array-key, true>  $products
+     * @param  array<array-key, true>  $sellers
      */
     private function deals(DataSourceAdapter $adapter, DateRange $range, array $products, array $sellers): void
     {
@@ -139,7 +147,7 @@ final class AdapterContractChecker
         $first = [];
         $days = [];
 
-        foreach ($adapter->fetchDeals($range) as $deal) {
+        foreach (self::untrusted($adapter->fetchDeals($range)) as $deal) {
             if (! $deal instanceof Deal) {
                 $this->fail('deals.type', 'элемент fetchDeals() — не Deal', get_debug_type($deal));
 
@@ -177,9 +185,9 @@ final class AdapterContractChecker
 
         $this->sellerCoverage($adapter->sellerCoverage(), $withSeller, $withoutSeller);
 
-        $this->sameSet('deals.repeatable', 'повторный fetchDeals() на том же диапазоне вернул другие сделки', $first, $this->prints($adapter->fetchDeals($range), $this->dealPrint(...)));
+        $this->sameSet('deals.repeatable', 'повторный fetchDeals() на том же диапазоне вернул другие сделки', $first, $this->prints(self::untrusted($adapter->fetchDeals($range)), Deal::class, $this->dealPrint(...)));
 
-        $this->boundaries('deals.split', $range, $first, $days, fn (DateRange $r) => $adapter->fetchDeals($r), $this->dealPrint(...));
+        $this->boundaries('deals.split', $range, $first, $days, fn (DateRange $r) => self::untrusted($adapter->fetchDeals($r)), Deal::class, $this->dealPrint(...));
     }
 
     private function sellerCoverage(SellerCoverage $coverage, int $withSeller, int $withoutSeller): void
@@ -199,8 +207,8 @@ final class AdapterContractChecker
     }
 
     /**
-     * @param  array<string, true>  $products
-     * @param  array<string, true>  $warehouses
+     * @param  array<array-key, true>  $products
+     * @param  array<array-key, true>  $warehouses
      * @return array<string, float> сумма движений диапазона по паре "product|warehouse"
      */
     private function movements(DataSourceAdapter $adapter, DateRange $range, array $products, array $warehouses): array
@@ -210,7 +218,7 @@ final class AdapterContractChecker
         $days = [];
         $sums = [];
 
-        foreach ($adapter->fetchStockMovements($range) as $m) {
+        foreach (self::untrusted($adapter->fetchStockMovements($range)) as $m) {
             if (! $m instanceof StockMovement) {
                 $this->fail('movements.type', 'элемент fetchStockMovements() — не StockMovement', get_debug_type($m));
 
@@ -241,26 +249,26 @@ final class AdapterContractChecker
             $sums[$key] = ($sums[$key] ?? 0.0) + $m->quantity;
         }
 
-        $this->sameSet('movements.repeatable', 'повторный fetchStockMovements() на том же диапазоне вернул другие движения', $first, $this->prints($adapter->fetchStockMovements($range), $this->movementPrint(...)));
+        $this->sameSet('movements.repeatable', 'повторный fetchStockMovements() на том же диапазоне вернул другие движения', $first, $this->prints(self::untrusted($adapter->fetchStockMovements($range)), StockMovement::class, $this->movementPrint(...)));
 
-        $this->boundaries('movements.split', $range, $first, $days, fn (DateRange $r) => $adapter->fetchStockMovements($r), $this->movementPrint(...));
+        $this->boundaries('movements.split', $range, $first, $days, fn (DateRange $r) => self::untrusted($adapter->fetchStockMovements($r)), StockMovement::class, $this->movementPrint(...));
 
         return $sums;
     }
 
     /**
-     * @param  array<string, true>  $products
-     * @param  array<string, true>  $warehouses
+     * @param  array<array-key, true>  $products
+     * @param  array<array-key, true>  $warehouses
      * @param  array<string, float>|null  $movementSums  null — движений нет (capability или ошибка)
      */
     private function stock(DataSourceAdapter $adapter, DateRange $range, array $products, array $warehouses, ?array $movementSums): void
     {
         $endDay = new DateTimeImmutable($this->day($range->end));
 
-        $close = $this->balances($adapter->fetchStock($endDay), $products, $warehouses, count: true);
-        $this->balances($adapter->fetchStock(null), $products, $warehouses);
+        $close = $this->balances(self::untrusted($adapter->fetchStock($endDay)), $products, $warehouses, count: true);
+        $this->balances(self::untrusted($adapter->fetchStock(null)), $products, $warehouses);
 
-        $lateInDay = $this->balances($adapter->fetchStock($endDay->setTime(23, 59, 59)), [], []);
+        $lateInDay = $this->balances(self::untrusted($adapter->fetchStock($endDay->setTime(23, 59, 59))), [], []);
         $this->sameBalances('stock.time_ignored', 'fetchStock() на начало и на конец одного дня вернул разные остатки (время должно игнорироваться)', $close, $lateInDay);
 
         if ($movementSums === null) {
@@ -269,7 +277,7 @@ final class AdapterContractChecker
             return;
         }
 
-        $open = $this->balances($adapter->fetchStock($this->startDay($range)->modify('-1 day')), [], []);
+        $open = $this->balances(self::untrusted($adapter->fetchStock($this->startDay($range)->modify('-1 day'))), [], []);
         $expected = $open;
         foreach ($movementSums as $key => $sum) {
             $expected[$key] = ($expected[$key] ?? 0.0) + $sum;
@@ -278,8 +286,9 @@ final class AdapterContractChecker
     }
 
     /**
-     * @param  array<string, true>  $products  пусто — не сверять
-     * @param  array<string, true>  $warehouses  пусто — не сверять
+     * @param  iterable<mixed>  $items
+     * @param  array<array-key, true>  $products  пусто — не сверять
+     * @param  array<array-key, true>  $warehouses  пусто — не сверять
      * @return array<string, float> "product|warehouse" => количество
      */
     private function balances(iterable $items, array $products, array $warehouses, bool $count = false): array
@@ -321,11 +330,11 @@ final class AdapterContractChecker
         $end = new DateTimeImmutable($this->day($adapter->historyEnd()));
         $after = new DateRange($end->modify('+1 day'), $end->modify('+31 days'));
 
-        foreach ($adapter->fetchDeals($after) as $deal) {
+        foreach (self::untrusted($adapter->fetchDeals($after)) as $deal) {
             $this->fail('history.bounds', 'сделка после historyEnd() '.$end->format('Y-m-d'), $deal instanceof Deal ? $deal->id : get_debug_type($deal));
         }
         if (in_array(AdapterCapability::StockMovements, $capabilities, true)) {
-            foreach ($adapter->fetchStockMovements($after) as $m) {
+            foreach (self::untrusted($adapter->fetchStockMovements($after)) as $m) {
                 $this->fail('history.bounds', 'движение после historyEnd() '.$end->format('Y-m-d'), $m instanceof StockMovement ? $m->id : get_debug_type($m));
             }
         }
@@ -337,12 +346,15 @@ final class AdapterContractChecker
      * середины диапазона (не последний день): на разрезе должны быть данные,
      * иначе ошибку «конец не включительно» не увидеть.
      *
-     * @param  array<string, string>  $whole  id => отпечаток из первой выборки
-     * @param  array<string, string>  $days  id => Y-m-d
-     * @param  callable(DateRange): iterable  $fetch
-     * @param  callable(object): string  $print
+     * @template T of Deal|StockMovement
+     *
+     * @param  array<array-key, string>  $whole  id => отпечаток из первой выборки
+     * @param  array<array-key, string>  $days  id => Y-m-d
+     * @param  callable(DateRange): iterable<mixed>  $fetch
+     * @param  class-string<T>  $class
+     * @param  callable(T): string  $print
      */
-    private function boundaries(string $rule, DateRange $range, array $whole, array $days, callable $fetch, callable $print): void
+    private function boundaries(string $rule, DateRange $range, array $whole, array $days, callable $fetch, string $class, callable $print): void
     {
         $start = $this->startDay($range);
         $end = new DateTimeImmutable($this->day($range->end));
@@ -363,7 +375,7 @@ final class AdapterContractChecker
 
         $union = [];
         foreach ([new DateRange($start, $cutDay), new DateRange($cutDay->modify('+1 day'), $end)] as $part) {
-            foreach ($this->prints($fetch($part), $print) as $id => $p) {
+            foreach ($this->prints($fetch($part), $class, $print) as $id => $p) {
                 if (isset($union[$id])) {
                     $this->fail($rule, $message, "{$id}: в обеих частях");
                 }
@@ -373,18 +385,22 @@ final class AdapterContractChecker
         $this->sameSet($rule, $message, $whole, $union);
 
         $ofDay = array_intersect_key($whole, array_filter($days, fn (string $d) => $d === $cut));
-        $this->sameSet($rule, $message, $ofDay, $this->prints($fetch(new DateRange($cutDay, $cutDay)), $print));
+        $this->sameSet($rule, $message, $ofDay, $this->prints($fetch(new DateRange($cutDay, $cutDay)), $class, $print));
     }
 
     /**
-     * @param  callable(object): string  $print
-     * @return array<string, string> id => отпечаток
+     * @template T of Deal|StockMovement
+     *
+     * @param  iterable<mixed>  $items
+     * @param  class-string<T>  $class  записи другого типа пропускаются (о них сообщает первая выборка)
+     * @param  callable(T): string  $print
+     * @return array<array-key, string> id => отпечаток
      */
-    private function prints(iterable $items, callable $print): array
+    private function prints(iterable $items, string $class, callable $print): array
     {
         $result = [];
         foreach ($items as $item) {
-            if (is_object($item) && isset($item->id)) {
+            if ($item instanceof $class) {
                 $result[$item->id] = $print($item);
             }
         }
@@ -393,8 +409,8 @@ final class AdapterContractChecker
     }
 
     /**
-     * @param  array<string, string>  $expected
-     * @param  array<string, string>  $actual
+     * @param  array<array-key, string>  $expected
+     * @param  array<array-key, string>  $actual
      */
     private function sameSet(string $rule, string $message, array $expected, array $actual): void
     {
@@ -440,6 +456,23 @@ final class AdapterContractChecker
     private function movementPrint(StockMovement $m): string
     {
         return sprintf('%s|%s|%.6F|%s|%s', $m->productId, $m->warehouseId, $m->quantity, $m->type->value, $m->date->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Выдача адаптера — недоверенные данные: её тип здесь проверяется, а не
+     * берётся из PHPDoc контракта.
+     *
+     * @param  iterable<mixed>  $items
+     * @return iterable<mixed>
+     */
+    private static function untrusted(iterable $items): iterable
+    {
+        return $items;
+    }
+
+    private static function untrustedValue(mixed $value): mixed
+    {
+        return $value;
     }
 
     private function day(DateTimeImmutable $date): string

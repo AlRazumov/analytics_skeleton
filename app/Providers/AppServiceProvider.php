@@ -6,6 +6,7 @@ use App\Adapters\DataSourceAdapterFactory;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\LostSalesCalculator;
+use App\Core\Analytics\Sellers\SellerMetric;
 use App\Core\Analytics\Sellers\SellerMetricsCalculator;
 use App\Core\Analytics\Sellers\SellerSalesData;
 use App\Core\Contracts\DataSourceAdapter;
@@ -23,6 +24,7 @@ use App\Repositories\EloquentMetricsComparisonRepository;
 use App\Repositories\EloquentMetricsSnapshotRepository;
 use App\Repositories\EloquentMetricsSnapshotWriter;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -56,10 +58,16 @@ class AppServiceProvider extends ServiceProvider
         // Реестр метрик продавцов: считаются только включённые в конфиге.
         $this->app->bind(SellerMetricsCalculator::class, function () {
             $enabled = (array) config('analytics.enabled_metrics.seller');
-            $metrics = array_map(static fn (string $class) => new $class, (array) config('analytics.metrics.seller'));
+            $metrics = array_map(static function (string $class): SellerMetric {
+                $metric = new $class;
+
+                return $metric instanceof SellerMetric
+                    ? $metric
+                    : throw new InvalidArgumentException("analytics.metrics.seller: {$class} не реализует SellerMetric.");
+            }, (array) config('analytics.metrics.seller'));
 
             return new SellerMetricsCalculator(array_values(array_filter(
-                $metrics, static fn ($m) => in_array($m->key(), $enabled, true),
+                $metrics, static fn (SellerMetric $m) => in_array($m->key(), $enabled, true),
             )));
         });
         $this->app->bind(DaysOfStockCalculator::class, fn () => new DaysOfStockCalculator(
