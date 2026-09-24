@@ -44,7 +44,7 @@ warehouses: 3, sellers: 24, movements: 31960, balances: 1500` — нарушен
 
 ## 4. Тесты
 
-`tests/Unit/Adapters/Contract/AdapterContractCheckerTest.php` — 33 теста:
+`tests/Unit/Adapters/Contract/AdapterContractCheckerTest.php` — 32 теста:
 мок Small (full/partial/none) и Medium (slow) — 0 нарушений, 0 пропусков;
 эталонный `Tests\Support\InMemoryAdapter` — 0 нарушений, пропущен только
 `history.bounds`; без capabilities методы остатков не вызываются; сделки без
