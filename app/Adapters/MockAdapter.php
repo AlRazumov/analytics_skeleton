@@ -52,7 +52,7 @@ use Random\Randomizer;
  */
 final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
 {
-    private const CATEGORIES = ['electronics', 'apparel', 'home', 'food', 'toys'];
+    private const CATEGORIES = ['Электроника', 'Одежда', 'Товары для дома', 'Продукты', 'Игрушки'];
 
     /** Конец окна истории движений по умолчанию (фиксирован ради детерминированности). */
     private const HISTORY_END = '2026-08-31';

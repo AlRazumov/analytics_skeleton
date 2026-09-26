@@ -34,6 +34,7 @@ use RuntimeException;
  * по одному fetchStock() + fetchStockMovements() на каждый месяц
  * диапазона. Итого за calculate() при обоих capabilities:
  * fetchStock() и fetchStockMovements() — по (2 + число месяцев) раз.
+ * Выручке по категориям нужен справочник товаров — один fetchProducts().
  * Все три метрики остатков считаются, только если у адаптера есть
  * StockMovements и StockSnapshots (иначе причина — warning в лог, без
  * исключения; turnover без остатка не считается, а не считается неверно).
@@ -60,6 +61,7 @@ final class MetricsCalculationService
         private readonly LostSalesCalculator $lostSales = new LostSalesCalculator,
         private readonly LoggerInterface $logger = new NullLogger,
         private readonly ?SellerMetricsCalculator $sellers = null,
+        private readonly CategoryRevenueCalculator $categories = new CategoryRevenueCalculator,
     ) {}
 
     /**
@@ -111,6 +113,8 @@ final class MetricsCalculationService
                 ->calculate($deals, $adapter->sellerCoverage()),
             // Потерянные продажи: та же выборка deals, эвристика для демо (см. докблок LostSalesCalculator).
             ...$this->lostSales->calculate($deals, $period),
+            // Категории: те же deals + один fetchProducts() за прогон (карта товар → категория).
+            ...$this->categories->calculate($deals, $adapter->fetchProducts()),
         ];
 
         // Метрики остатков читают окна сами (свои вызовы fetchStock /

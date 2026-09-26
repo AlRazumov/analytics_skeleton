@@ -93,6 +93,7 @@ return [
         'turnover' => (bool) env('ANALYTICS_FEATURE_TURNOVER', true),
         'transfers' => (bool) env('ANALYTICS_FEATURE_TRANSFERS', true),
         'sellers' => (bool) env('ANALYTICS_FEATURE_SELLERS', true),
+        'categories' => (bool) env('ANALYTICS_FEATURE_CATEGORIES', true),
     ],
 
     // Пороги и размеры таблиц на страницах (не путать с порогами расчёта).

@@ -28,6 +28,7 @@
 | 17 | Продавцы (Seller): справочник, метрики по реестру, топ-N на обзоре; на моке, без реальных адаптеров | stages/stage-17-sellers.md | done (см. reports/stage-17-sellers.md) | 06, 13 |
 | 18 | Страница продавцов (выбор метрики `?metric=`) и CSV-выгрузка | stages/stage-18-sellers-page.md | done (см. reports/stage-18-sellers-page.md) | 17 |
 | 19 | Проверка контракта DataSourceAdapter: AdapterContractChecker, команда `adapter:check` | stages/stage-19-adapter-contract.md | done (см. reports/stage-19-adapter-contract.md) | 06, 17 |
+| 20 | Категории товаров: выручка по категориям, страница `/dashboards/categories`; на моке | stages/stage-20-categories.md | done (см. reports/stage-20-categories.md) | 11, 12 |
 
 ## TODO before real adapters
 
@@ -255,9 +256,9 @@
 3. ✅ done: анти-топ — заголовок «Наименьшая выручка среди проданных за месяц» и пояснение про «Неликвиды» (при включённом флаге dead_stock).
 4. ✅ done: запись в Known issues про потерянные продажи (docs).
 
-## Статус проекта (обновлено 2026-09-26)
+## Статус проекта (обновлено 2026-09-26, этап 20)
 
-Выполнены этапы 00–14, 17, 18 и 19; Known issues закрыты (потерянные продажи
+Выполнены этапы 00–14 и 17–20; Known issues закрыты (потерянные продажи
 и донор без продаж — демо-эвристиками, финальное решение — при реальном
 клиенте), кроме одного open-пункта — возвраты в `LostSalesCalculator` и
 `AbcClassifier`, решается с первым реальным адаптером. Code review
@@ -276,6 +277,9 @@
   `metrics:calculate` с `flock` и `memory_limit`, обновление);
 - открытые вопросы отчёта этапа 14 (`reports/stage-14-transfer-recommendations.md`,
   §10, п. 1–3) — продуктовые решения, не баги;
+- ✅ done (2026-09-26): разрез по категориям товаров — этап 20
+  (`/dashboards/categories`); продолжение — фильтр `?category=` на других
+  страницах, ABC/неликвиды по категориям (`reports/stage-20-categories.md`, §6);
 - экспорт остальных страниц (сейчас CSV только у продавцов, этап 18);
 - проверка страниц на Large-профиле мока.
 

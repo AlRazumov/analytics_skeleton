@@ -96,5 +96,6 @@ it('skips stock movements and turnover when the adapter does not report the Stoc
 
     expect($adapter->fetchStockMovementsCalls)->toBe(0)
         ->and(collect($records)->where('metricKey', 'turnover'))->toHaveCount(0)
-        ->and(collect($records)->where('metricKey', 'revenue'))->toHaveCount(1);
+        ->and(collect($records)->where('metricKey', 'revenue')->where('entityType', 'product'))->toHaveCount(1)
+        ->and(collect($records)->where('metricKey', 'revenue')->where('entityType', 'category'))->toHaveCount(1);
 });
