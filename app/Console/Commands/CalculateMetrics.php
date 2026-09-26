@@ -83,15 +83,21 @@ class CalculateMetrics extends Command
         $counts = $referenceSync->sync($adapter);
         $this->info("Справочники: товаров — {$counts['products']}, складов — {$counts['warehouses']}, продавцов — {$counts['sellers']}.");
 
-        $records = $service->calculate($adapter, $dateRange);
-
-        // Удаление и запись — одной транзакцией: сбой записи не оставляет месяцы пустыми или обрезанными.
-        DB::transaction(function () use ($dateRange, $writer, $records): void {
+        // Удаление и запись — одной транзакцией: сбой расчёта или записи не
+        // оставляет месяцы пустыми или обрезанными. Записи пишутся порциями по
+        // мере расчёта, чтобы не держать весь прогон в памяти.
+        $written = DB::transaction(function () use ($service, $adapter, $dateRange, $writer): int {
             $this->deleteExistingSnapshots($dateRange);
-            $writer->write($records);
+            $written = 0;
+            foreach ($service->calculateInChunks($adapter, $dateRange) as $chunk) {
+                $writer->write($chunk);
+                $written += count($chunk);
+            }
+
+            return $written;
         });
 
-        $this->info(sprintf('Готово: записано снэпшотов — %d.', count($records)));
+        $this->info(sprintf('Готово: записано снэпшотов — %d.', $written));
 
         return self::SUCCESS;
     }

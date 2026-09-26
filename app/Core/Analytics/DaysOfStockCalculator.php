@@ -7,6 +7,7 @@ use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\StockMovementType;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use DateTimeImmutable;
+use Generator;
 
 /**
  * Дни до обнуления по (товар × склад, месяц), значение на asOf =
@@ -80,12 +81,28 @@ final class DaysOfStockCalculator
      */
     public function calculate(DataSourceAdapter $adapter, DateRange $period): array
     {
+        $records = [];
+        foreach ($this->calculateByMonth($adapter, $period) as $chunk) {
+            array_push($records, ...$chunk);
+        }
+
+        return $records;
+    }
+
+    /**
+     * То же, что calculate(), порцией на каждый месяц диапазона (в памяти —
+     * записи одного месяца). $lastSkipped окончателен после полного обхода.
+     *
+     * @return Generator<int, MetricsSnapshotRecord[]>
+     */
+    public function calculateByMonth(DataSourceAdapter $adapter, DateRange $period): Generator
+    {
         $rangeStart = new DateTimeImmutable($period->start->format('Y-m-d'));
         $rangeEnd = new DateTimeImmutable($period->end->format('Y-m-d'));
         $this->lastSkipped = ['no_demand' => 0, 'too_few_in_stock_days' => 0];
 
-        $records = [];
         foreach (Months::in($rangeStart, $rangeEnd) as $month) {
+            $records = [];
             $asOf = min($month->end, $rangeEnd);
             $windowStart = $asOf->modify('-'.($this->windowDays - 1).' days');
             $window = new DateRange($windowStart, $asOf);
@@ -182,8 +199,8 @@ final class DaysOfStockCalculator
                     ],
                 );
             }
-        }
 
-        return $records;
+            yield $records;
+        }
     }
 }

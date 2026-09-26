@@ -1,9 +1,12 @@
-@props(['data'])
+@props(['data', 'title' => null])
 @php
     /** @var \App\Core\Widgets\DTO\TableData $data */
 @endphp
 
 <div class="widget widget-table">
+    @if ($title !== null)
+        <h2>{{ $title }}</h2>
+    @endif
     <table>
         <thead>
             <tr>
@@ -26,4 +29,8 @@
             @endforelse
         </tbody>
     </table>
+    @if ($data->total !== null && $data->rows !== [])
+        <p>Показано {{ count($data->rows) }} из {{ $data->total }}</p>
+    @endif
+    {{ $slot }}
 </div>

@@ -19,25 +19,24 @@ final class EloquentMetricsSnapshotWriter implements MetricsSnapshotWriter
     {
         $now = now();
 
-        $rows = array_map(static function (MetricsSnapshotRecord $record) use ($now): array {
-            $period = Period::fromKey($record->period);
+        // Строки для INSERT собираются по чанку, а не на весь массив сразу.
+        foreach (array_chunk($records, self::CHUNK_SIZE) as $chunk) {
+            MetricsSnapshot::query()->insert(array_map(static function (MetricsSnapshotRecord $record) use ($now): array {
+                $period = Period::fromKey($record->period);
 
-            return [
-                'entity_type' => $record->entityType,
-                'entity_id' => $record->entityId,
-                'metric_key' => $record->metricKey,
-                'value' => $record->value,
-                'value_meta' => $record->valueMeta === [] ? null : json_encode($record->valueMeta),
-                'period_type' => $period->granularity->value,
-                'period_start' => $period->start->format('Y-m-d'),
-                'period_end' => $period->end->format('Y-m-d'),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }, $records);
-
-        foreach (array_chunk($rows, self::CHUNK_SIZE) as $chunk) {
-            MetricsSnapshot::query()->insert($chunk);
+                return [
+                    'entity_type' => $record->entityType,
+                    'entity_id' => $record->entityId,
+                    'metric_key' => $record->metricKey,
+                    'value' => $record->value,
+                    'value_meta' => $record->valueMeta === [] ? null : json_encode($record->valueMeta),
+                    'period_type' => $period->granularity->value,
+                    'period_start' => $period->start->format('Y-m-d'),
+                    'period_end' => $period->end->format('Y-m-d'),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }, $chunk));
         }
     }
 }

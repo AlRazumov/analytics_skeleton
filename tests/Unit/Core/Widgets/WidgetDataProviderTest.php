@@ -3,6 +3,7 @@
 use App\Core\Domain\Enums\PeriodGranularity;
 use App\Core\Domain\PeriodRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
+use App\Core\Widgets\DTO\MatrixCellData;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use App\Core\Widgets\WidgetDataProvider;
 
@@ -20,6 +21,44 @@ function fakeRepository(array $records): MetricsSnapshotRepository
                     && $r->metricKey === $metricKey
                     && in_array($r->period, $periodKeys, true),
             ));
+        }
+
+        public function sumsByPeriod(string $entityType, string $metricKey, array $periodKeys): array
+        {
+            $sums = [];
+            foreach ($this->findByPeriodKeys($entityType, $metricKey, $periodKeys) as $r) {
+                $sums[$r->period] = ($sums[$r->period] ?? 0.0) + $r->value;
+            }
+
+            return $sums;
+        }
+
+        public function topBySum(string $entityType, string $metricKey, array $periodKeys, int $limit): array
+        {
+            $byEntity = [];
+            foreach ($this->findByPeriodKeys($entityType, $metricKey, $periodKeys) as $r) {
+                $byEntity[$r->entityId][$r->period] = $r->value;
+            }
+            uksort($byEntity, fn ($a, $b) => array_sum($byEntity[$b]) <=> array_sum($byEntity[$a]) ?: strcmp($a, $b));
+            $rows = [];
+            foreach (array_slice($byEntity, 0, $limit, true) as $id => $byPeriod) {
+                $rows[] = ['entityId' => (string) $id, 'byPeriod' => $byPeriod];
+            }
+
+            return ['rows' => $rows, 'total' => count($byEntity)];
+        }
+
+        public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey): array
+        {
+            $cells = [];
+            foreach ($this->findByPeriodKeys($entityType, $metricKey, [$periodKey]) as $r) {
+                $row = (string) ($r->valueMeta[$rowMetaKey] ?? '?');
+                $col = (string) ($r->valueMeta[$colMetaKey] ?? '?');
+                $cell = $cells[$row.'|'.$col] ?? new MatrixCellData($row, $col, 0, 0.0);
+                $cells[$row.'|'.$col] = new MatrixCellData($row, $col, $cell->itemsCount + 1, $cell->value + $r->value);
+            }
+
+            return array_values($cells);
         }
 
         public function latestPeriodFor(string $entityType, string $metricKey): ?string
@@ -122,4 +161,23 @@ it('computes kpi delta against the preceding period of the same length', functio
 
     expect($kpi->value)->toBe(100.0);
     expect($kpi->deltaPercent)->toBe(100.0);
+});
+
+it('builds the top table by window sum with one column per period and a total', function () {
+    $repo = fakeRepository([
+        new MetricsSnapshotRecord('product', 'prod-1', 'revenue', 100.0, 'month:2026-01'),
+        new MetricsSnapshotRecord('product', 'prod-2', 'revenue', 50.0, 'month:2026-01'),
+        new MetricsSnapshotRecord('product', 'prod-2', 'revenue', 80.0, 'month:2026-03'),
+        new MetricsSnapshotRecord('product', 'prod-3', 'revenue', 10.0, 'month:2026-02'),
+    ]);
+    $period = new PeriodRange(new DateTimeImmutable('2026-01-01'), new DateTimeImmutable('2026-03-31'), PeriodGranularity::Month);
+
+    $table = (new WidgetDataProvider($repo))->topTable('product', 'revenue', $period, 2);
+
+    expect($table->headers)->toBe(['entity_id', '2026-01', '2026-02', '2026-03', 'Итого'])
+        ->and($table->rows)->toBe([
+            ['prod-2', 50.0, 0.0, 80.0, 130.0],
+            ['prod-1', 100.0, 0.0, 0.0, 100.0],
+        ])
+        ->and($table->total)->toBe(3);
 });

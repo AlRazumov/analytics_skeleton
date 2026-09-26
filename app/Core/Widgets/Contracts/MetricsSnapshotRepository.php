@@ -2,6 +2,7 @@
 
 namespace App\Core\Widgets\Contracts;
 
+use App\Core\Widgets\DTO\MatrixCellData;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 
 /**
@@ -16,6 +17,35 @@ interface MetricsSnapshotRepository
      * @return MetricsSnapshotRecord[]
      */
     public function findByPeriodKeys(string $entityType, string $metricKey, array $periodKeys): array;
+
+    /**
+     * Сумма value по всем сущностям для каждого периода (агрегация в
+     * хранилище, строки не читаются). Периодов без строк в ответе нет.
+     *
+     * @param  string[]  $periodKeys
+     * @return array<string, float> ключ периода => сумма
+     */
+    public function sumsByPeriod(string $entityType, string $metricKey, array $periodKeys): array;
+
+    /**
+     * Первые $limit сущностей по сумме value за периоды $periodKeys (по
+     * убыванию суммы, ничьи — по entity_id по возрастанию) со значениями по
+     * периодам, и общее число сущностей со строками в этих периодах.
+     * Сортировка и LIMIT — в хранилище.
+     *
+     * @param  string[]  $periodKeys
+     * @return array{rows: list<array{entityId: string, byPeriod: array<string, float>}>, total: int}
+     */
+    public function topBySum(string $entityType, string $metricKey, array $periodKeys, int $limit): array;
+
+    /**
+     * Ячейки «число сущностей и сумма value» за период, сгруппированные по
+     * двум ключам value_meta (для отсутствующего ключа — '?'). Группировка —
+     * в хранилище.
+     *
+     * @return list<MatrixCellData>
+     */
+    public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey): array;
 
     /**
      * Ключ `period` самого свежего снэпшота для (entityType, metricKey) —

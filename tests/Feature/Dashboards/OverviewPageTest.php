@@ -31,7 +31,7 @@ it('ends the window at the latest revenue period, whatever it is', function () {
     seedRevenue(['month:2026-03' => ['a' => 1], 'month:2026-08' => ['a' => 5]]);
 
     $response = $this->get('/dashboards/overview')->assertOk()->assertSee('по 2026-08');
-    expect($response->viewData('table')->rows)->toHaveCount(2);
+    expect($response->viewData('table')->rows)->toBe([['a', 1.0, 0.0, 0.0, 0.0, 0.0, 5.0, 6.0]]);
 
     seedRevenue(['month:2027-02' => ['a' => 7]]);
     $this->get('/dashboards/overview')->assertOk()->assertSee('по 2027-02');
@@ -40,9 +40,10 @@ it('ends the window at the latest revenue period, whatever it is', function () {
 it('covers exactly six months ending at the period', function () {
     seedRevenue(['month:2026-02' => ['a' => 1], 'month:2026-03' => ['a' => 1], 'month:2026-08' => ['a' => 1]]);
 
-    $periods = collect($this->get('/dashboards/overview')->viewData('table')->rows)->pluck(1)->all();
+    $table = $this->get('/dashboards/overview')->viewData('table');
 
-    expect($periods)->toEqual(['2026-03', '2026-08']);
+    expect($table->headers)->toBe(['Товар', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', 'Итого'])
+        ->and($table->rows[0][7])->toBe(2.0);
 });
 
 it('accepts ?period=month:YYYY-MM as the end of the window', function () {
@@ -109,4 +110,15 @@ it('does not move the ABC/XYZ latest period when an earlier month is recalculate
 
     expect($before)->toBe('month:2026-08')
         ->and($repository->latestPeriodFor('product', 'abc_xyz_classification'))->toBe($before);
+});
+
+it('limits the product table to the top by window revenue and says how many there are', function () {
+    config(['analytics.display.table_limit' => 2]);
+    seedRevenue(['month:2026-07' => ['a' => 10, 'b' => 30, 'c' => 5], 'month:2026-08' => ['a' => 25, 'c' => 1]]);
+
+    $response = $this->get('/dashboards/overview')->assertOk()
+        ->assertSee('Товары с наибольшей выручкой за окно')->assertSee('Показано 2 из 3')
+        ->assertSee('Топ товаров за месяц со сравнением');
+
+    expect(array_column($response->viewData('table')->rows, 0))->toBe(['a', 'b']);
 });
