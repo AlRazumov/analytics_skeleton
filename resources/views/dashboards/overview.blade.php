@@ -10,7 +10,7 @@
 
         <x-widgets.kpi-card :data="$kpiCard" />
         <x-widgets.line-chart :data="$lineChart" />
-        <x-widgets.bar-chart :data="$barChart" />
+        <x-widgets.bar-chart :data="$barChart" :note="count($barChart->series) < 2 ? 'Сравнение с прошлым годом недоступно: в истории нет данных за тот же период прошлого года.' : null" />
         <x-widgets.table :data="$table" />
 
         @if (config('analytics.features.sellers'))

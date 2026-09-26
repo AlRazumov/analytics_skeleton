@@ -16,7 +16,7 @@
             @forelse ($data->rows as $row)
                 <tr>
                     @foreach ($row as $cell)
-                        <td>{{ $cell }}</td>
+                        <td>{{ is_int($cell) || is_float($cell) ? \App\Support\Format::num($cell) : $cell }}</td>
                     @endforeach
                 </tr>
             @empty

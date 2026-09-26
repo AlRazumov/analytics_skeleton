@@ -51,21 +51,23 @@ final readonly class WidgetDataProvider
      * Тот же метрик за два периода (текущий и год назад), выровненные
      * по позиции точки — отдельный метод, а не флаг внутри lineChart,
      * потому что форма результата (две серии вместо одной) другая.
+     *
+     * Если за год назад нет ни одного снэпшота (история короче двух
+     * лет), серия прошлого года не добавляется: сплошной ноль выглядел
+     * бы как «продаж не было», а не как «данных нет».
      */
     public function lineChartYoY(string $entityType, string $metricKey, PeriodRange $period): LineChartData
     {
         $previous = $period->previousYear();
 
-        $currentPoints = $this->pointsFor($entityType, $metricKey, $period);
-        $previousPoints = $this->pointsFor($entityType, $metricKey, $previous, useLabelsFrom: $period);
+        $series = [new Series($this->periodLabel($period), $this->pointsFor($entityType, $metricKey, $period))];
 
-        return new LineChartData(
-            title: $metricKey,
-            series: [
-                new Series($this->periodLabel($period), $currentPoints),
-                new Series($this->periodLabel($previous), $previousPoints),
-            ],
-        );
+        $previousRecords = $this->repository->findByPeriodKeys($entityType, $metricKey, $previous->keys());
+        if ($previousRecords !== []) {
+            $series[] = new Series($this->periodLabel($previous), $this->pointsFrom($previousRecords, $previous, useLabelsFrom: $period));
+        }
+
+        return new LineChartData(title: $metricKey, series: $series);
     }
 
     /**
@@ -165,10 +167,17 @@ final readonly class WidgetDataProvider
     /**
      * @return SeriesPoint[]
      */
-    private function pointsFor(string $entityType, string $metricKey, PeriodRange $period, ?PeriodRange $useLabelsFrom = null): array
+    private function pointsFor(string $entityType, string $metricKey, PeriodRange $period): array
     {
-        $records = $this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys());
+        return $this->pointsFrom($this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys()), $period);
+    }
 
+    /**
+     * @param  MetricsSnapshotRecord[]  $records
+     * @return SeriesPoint[]
+     */
+    private function pointsFrom(array $records, PeriodRange $period, ?PeriodRange $useLabelsFrom = null): array
+    {
         $byPeriod = [];
         foreach ($records as $record) {
             $byPeriod[$record->period] = ($byPeriod[$record->period] ?? 0.0) + $record->value;

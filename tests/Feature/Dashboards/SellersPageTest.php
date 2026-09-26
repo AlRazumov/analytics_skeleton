@@ -138,6 +138,7 @@ it('exports the same table as CSV for Excel', function () {
         ->and($rows[1][0])->toBe('1')
         ->and($rows[1][3])->toBe(number_format($page->rows[0]->value, 2, ',', ''))
         ->and($rows[1][4])->toMatch('/^\d+$/')
+        ->and($rows[1][6])->toMatch('/^-?\d+,\d$/')
         ->and(end($rows)[0])->toBe('—')->and(end($rows)[1])->toBe('Без продавца');
 });
 
