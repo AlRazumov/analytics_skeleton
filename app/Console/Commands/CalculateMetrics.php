@@ -54,6 +54,8 @@ class CalculateMetrics extends Command
 
     public function handle(MetricsCalculationService $service, MetricsSnapshotWriter $writer, DataSourceAdapterFactory $factory, ReferenceSyncService $referenceSync): int
     {
+        $this->raiseMemoryLimit((string) config('analytics.calculate_memory_limit'));
+
         try {
             $profileOption = (string) $this->option('profile');
             if ($profileOption !== '' && $factory->source() !== 'mock') {
@@ -92,6 +94,23 @@ class CalculateMetrics extends Command
         $this->info(sprintf('Готово: записано снэпшотов — %d.', count($records)));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Поднимает memory_limit до $minimum, если текущий ниже; неограниченный
+     * (-1) и больший лимит не трогает. Нужен, потому что schedule:run
+     * запускает команду отдельным процессом без `-d memory_limit`.
+     */
+    private function raiseMemoryLimit(string $minimum): void
+    {
+        $current = (string) ini_get('memory_limit');
+        if ($minimum === '' || $current === '-1') {
+            return;
+        }
+
+        if (ini_parse_quantity($current) < ini_parse_quantity($minimum)) {
+            ini_set('memory_limit', $minimum);
+        }
     }
 
     private function resolveProfile(string $value): MockDataProfile

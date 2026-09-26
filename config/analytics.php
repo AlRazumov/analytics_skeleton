@@ -21,6 +21,18 @@ return [
         'seller_coverage' => env('ANALYTICS_MOCK_SELLER_COVERAGE', 'full'),
     ],
 
+    // Регулярный пересчёт (routes/console.php, нужен cron с schedule:run):
+    // время запуска metrics:calculate ежедневно, 'HH:MM' в часовом поясе
+    // приложения; пустая строка — задача не планируется.
+    'schedule' => [
+        'metrics_at' => env('ANALYTICS_METRICS_AT', '03:00'),
+    ],
+
+    // Минимальный memory_limit для metrics:calculate: команда поднимает лимит
+    // до этого значения (и никогда не опускает). На профиле medium расчёт не
+    // укладывается в стандартные 128M.
+    'calculate_memory_limit' => env('ANALYTICS_CALCULATE_MEMORY_LIMIT', '512M'),
+
     // Реестр метрик по типам сущностей: все известные и включённые
     // (считаются и показываются только включённые). Ключ — metric_key.
     'metrics' => [
