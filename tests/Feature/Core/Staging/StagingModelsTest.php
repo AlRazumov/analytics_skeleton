@@ -3,6 +3,7 @@
 use App\Core\Staging\StagingDeal;
 use App\Core\Staging\StagingProduct;
 use App\Core\Staging\StagingStockMovement;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -71,3 +72,13 @@ it('creates a staging stock movement with a destination warehouse for transfer',
         'to_warehouse_external_id' => 'ext-warehouse-2',
     ]);
 });
+
+it('rejects a duplicate external_id in staging deals and stock movements', function (string $model, array $attributes) {
+    $model::create(['external_id' => 'dup', ...$attributes]);
+
+    expect(fn () => $model::create(['external_id' => 'dup', ...$attributes]))
+        ->toThrow(UniqueConstraintViolationException::class);
+})->with([
+    'deal' => [StagingDeal::class, ['product_external_id' => 'p', 'amount' => 1, 'occurred_at' => '2026-08-01', 'synced_at' => '2026-08-01']],
+    'movement' => [StagingStockMovement::class, ['product_external_id' => 'p', 'warehouse_external_id' => 'w', 'quantity' => 1, 'type' => 'receipt', 'occurred_at' => '2026-08-01', 'synced_at' => '2026-08-01']],
+]);

@@ -246,6 +246,23 @@
   лимитеры незарегистрированных 2FA/passkeys; `demo:install` проверяет
   `staging_sellers`, `reference:sync` выводит число продавцов.
 
+- ✅ closed (2026-09-26, по `reports/code-review-2026-09-24.md`, §5, п. 1):
+  `external_id` у `staging_deals`/`staging_stock_movements` был только
+  индексом — будущий upsert-синк не дедуплицировался бы. Миграция
+  `2026_09_26_100000_make_staging_external_ids_unique` делает его unique, как у
+  товаров, складов и продавцов (таблицы пустые, данных она не трогает).
+
+- open (2026-09-26, по `reports/code-review-2026-09-24.md`, §5, пп. 2–3):
+  `staging_deals`/`staging_stock_movements` ничем не заполняются, а колонка
+  `staging_stock_movements.to_warehouse_external_id` не пишется: в домене
+  перемещение — пара `transfer_out`/`transfer_in` с общим `meta.transfer_id`
+  (`StockMovement.php`), поля `toWarehouseId` нет. Упоминания «добавлен
+  `toWarehouseId`» в строке этапа 01 таблицы выше, `stages/stage-02-*` и
+  отчётах этапов 01/02 устарели (у `StockMovement` такого поля нет; оно есть
+  только у рекомендаций перемещений, этап 14). Файлы этапов задним числом не
+  переписываются. Решать, нужна ли
+  запись сырых данных в staging и в какой форме, — с первым реальным адаптером.
+
 ## Хвосты этапа 11 (без номера этапа)
 
 Не новый этап: нумерация и статусы этапов 12/13 не меняются. Отчёт —
@@ -280,6 +297,9 @@
 - ✅ done (2026-09-26): разрез по категориям товаров — этап 20
   (`/dashboards/categories`); продолжение — фильтр `?category=` на других
   страницах, ABC/неликвиды по категориям (`reports/stage-20-categories.md`, §6);
+- ✅ done (2026-09-26): планировщик Laravel вместо ручной cron-строки
+  (`routes/console.php`, `ANALYTICS_METRICS_AT`; `metrics:calculate` сам
+  поднимает `memory_limit`) и unique `external_id` у staging сделок/движений;
 - экспорт остальных страниц (сейчас CSV только у продавцов, этап 18);
 - проверка страниц на Large-профиле мока.
 
