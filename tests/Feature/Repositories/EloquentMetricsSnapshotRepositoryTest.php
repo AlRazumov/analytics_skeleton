@@ -72,3 +72,50 @@ it('rejects a duplicate snapshot for the same entity, metric and period', functi
     $writer->write([$record]);
     $writer->write([$record]);
 })->throws(QueryException::class);
+
+it('sums values per period in the database, only for the requested entity type and periods', function () {
+    (new EloquentMetricsSnapshotWriter)->write([
+        new MetricsSnapshotRecord('product', 'p1', 'revenue', 10.5, 'month:2026-07'),
+        new MetricsSnapshotRecord('product', 'p2', 'revenue', 4.5, 'month:2026-07'),
+        new MetricsSnapshotRecord('product', 'p1', 'revenue', 7.0, 'month:2026-08'),
+        new MetricsSnapshotRecord('product', 'p1', 'revenue', 99.0, 'month:2026-06'),
+        new MetricsSnapshotRecord('category', 'c1', 'revenue', 1000.0, 'month:2026-07'),
+    ]);
+
+    expect((new EloquentMetricsSnapshotRepository)->sumsByPeriod('product', 'revenue', ['month:2026-07', 'month:2026-08', 'month:2026-09']))
+        ->toEqual(['month:2026-07' => 15.0, 'month:2026-08' => 7.0]);
+});
+
+it('returns the top entities by window sum with per-period values, ties by entity_id bytewise', function () {
+    (new EloquentMetricsSnapshotWriter)->write([
+        new MetricsSnapshotRecord('product', 'b', 'revenue', 5.0, 'month:2026-07'),
+        new MetricsSnapshotRecord('product', 'b', 'revenue', 5.0, 'month:2026-08'),
+        new MetricsSnapshotRecord('product', 'a', 'revenue', 10.0, 'month:2026-08'),
+        new MetricsSnapshotRecord('product', 'Z', 'revenue', 10.0, 'month:2026-07'),
+        new MetricsSnapshotRecord('product', 'c', 'revenue', 1.0, 'month:2026-07'),
+        new MetricsSnapshotRecord('product', 'd', 'revenue', 500.0, 'month:2026-05'),
+    ]);
+
+    $top = (new EloquentMetricsSnapshotRepository)->topBySum('product', 'revenue', ['month:2026-07', 'month:2026-08'], 3);
+
+    expect($top['total'])->toBe(4)
+        ->and($top['rows'])->toEqual([
+            ['entityId' => 'Z', 'byPeriod' => ['month:2026-07' => 10.0]],
+            ['entityId' => 'a', 'byPeriod' => ['month:2026-08' => 10.0]],
+            ['entityId' => 'b', 'byPeriod' => ['month:2026-07' => 5.0, 'month:2026-08' => 5.0]],
+        ]);
+});
+
+it('groups cells by two value_meta keys in the database, missing keys as "?"', function () {
+    (new EloquentMetricsSnapshotWriter)->write([
+        new MetricsSnapshotRecord('product', 'p1', 'abc_xyz_classification', 100.0, 'month:2026-08', ['abc_class' => 'A', 'xyz_class' => 'X']),
+        new MetricsSnapshotRecord('product', 'p2', 'abc_xyz_classification', 50.0, 'month:2026-08', ['abc_class' => 'A', 'xyz_class' => 'X']),
+        new MetricsSnapshotRecord('product', 'p3', 'abc_xyz_classification', 5.0, 'month:2026-08', ['abc_class' => 'C']),
+        new MetricsSnapshotRecord('product', 'p4', 'abc_xyz_classification', 1.0, 'month:2026-07', ['abc_class' => 'B', 'xyz_class' => 'Y']),
+    ]);
+
+    $cells = (new EloquentMetricsSnapshotRepository)->cellsByMeta('product', 'abc_xyz_classification', 'month:2026-08', 'abc_class', 'xyz_class');
+
+    expect(array_map(fn ($c) => [$c->rowKey, $c->colKey, $c->itemsCount, $c->value], $cells))
+        ->toBe([['A', 'X', 2, 150.0], ['C', '?', 1, 5.0]]);
+});

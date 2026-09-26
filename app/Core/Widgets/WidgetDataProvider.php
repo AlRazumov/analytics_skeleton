@@ -9,7 +9,6 @@ use App\Core\Widgets\DTO\KpiCardData;
 use App\Core\Widgets\DTO\LineChartData;
 use App\Core\Widgets\DTO\MatrixCellData;
 use App\Core\Widgets\DTO\MatrixData;
-use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use App\Core\Widgets\DTO\Series;
 use App\Core\Widgets\DTO\SeriesPoint;
 use App\Core\Widgets\DTO\TableData;
@@ -62,34 +61,45 @@ final readonly class WidgetDataProvider
 
         $series = [new Series($this->periodLabel($period), $this->pointsFor($entityType, $metricKey, $period))];
 
-        $previousRecords = $this->repository->findByPeriodKeys($entityType, $metricKey, $previous->keys());
-        if ($previousRecords !== []) {
-            $series[] = new Series($this->periodLabel($previous), $this->pointsFrom($previousRecords, $previous, useLabelsFrom: $period));
+        $previousSums = $this->repository->sumsByPeriod($entityType, $metricKey, $previous->keys());
+        if ($previousSums !== []) {
+            $series[] = new Series($this->periodLabel($previous), $this->pointsFrom($previousSums, $previous, useLabelsFrom: $period));
         }
 
         return new LineChartData(title: $metricKey, series: $series);
     }
 
     /**
+     * Первые $limit сущностей по сумме метрики за окно $period: строка —
+     * сущность, колонки — периоды окна и итог за окно; «показано N из
+     * total». Сортировка и LIMIT — в хранилище (topBySum), в память не
+     * читаются все строки окна.
+     *
      * @param  bool  $productNames  entity — товар: первая колонка «Товар» с названием
      *                              (одним вызовом резолвера на все id; нет названия — id)
      */
-    public function table(string $entityType, string $metricKey, PeriodRange $period, bool $productNames = false): TableData
+    public function topTable(string $entityType, string $metricKey, PeriodRange $period, int $limit, bool $productNames = false): TableData
     {
-        $records = $this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys());
+        $keys = $period->keys();
+        $top = $this->repository->topBySum($entityType, $metricKey, $keys, $limit);
 
-        $names = $productNames && $this->productNames !== null
-            ? $this->productNames->names(array_values(array_unique(array_map(static fn (MetricsSnapshotRecord $r) => $r->entityId, $records))))
-            : [];
+        $ids = array_map(static fn (array $row) => $row['entityId'], $top['rows']);
+        $names = $productNames && $this->productNames !== null ? $this->productNames->names($ids) : [];
 
         $rows = [];
-        foreach ($records as $record) {
-            $rows[] = [$names[$record->entityId] ?? $record->entityId, $this->displayLabel($record->period), $record->value];
+        foreach ($top['rows'] as $row) {
+            $cells = [$names[$row['entityId']] ?? $row['entityId']];
+            foreach ($keys as $key) {
+                $cells[] = $row['byPeriod'][$key] ?? 0.0;
+            }
+            $cells[] = array_sum($row['byPeriod']);
+            $rows[] = $cells;
         }
 
         return new TableData(
-            headers: [$productNames ? 'Товар' : 'entity_id', 'period', $metricKey],
+            headers: [$productNames ? 'Товар' : 'entity_id', ...array_map($this->displayLabel(...), $keys), 'Итого'],
             rows: $rows,
+            total: $top['total'],
         );
     }
 
@@ -132,36 +142,20 @@ final readonly class WidgetDataProvider
             return new MatrixData([], [], []);
         }
 
-        $records = $this->repository->findByPeriodKeys(
+        $cells = $this->repository->cellsByMeta(
             self::ABC_XYZ_ENTITY_TYPE,
             self::ABC_XYZ_METRIC_KEY,
-            [$latestPeriod],
+            $latestPeriod,
+            'abc_class',
+            'xyz_class',
         );
-
-        $cells = [];
-        foreach ($records as $record) {
-            $rowKey = (string) ($record->valueMeta['abc_class'] ?? '?');
-            $colKey = (string) ($record->valueMeta['xyz_class'] ?? '?');
-            $cellKey = $rowKey.'|'.$colKey;
-
-            if (! isset($cells[$cellKey])) {
-                $cells[$cellKey] = new MatrixCellData($rowKey, $colKey, 0, 0.0);
-            }
-
-            $cells[$cellKey] = new MatrixCellData(
-                $rowKey,
-                $colKey,
-                $cells[$cellKey]->itemsCount + 1,
-                $cells[$cellKey]->value + $record->value,
-            );
-        }
 
         $rowLabels = array_values(array_unique(array_map(static fn (MatrixCellData $c) => $c->rowKey, $cells)));
         $colLabels = array_values(array_unique(array_map(static fn (MatrixCellData $c) => $c->colKey, $cells)));
         sort($rowLabels);
         sort($colLabels);
 
-        return new MatrixData($rowLabels, $colLabels, array_values($cells));
+        return new MatrixData($rowLabels, $colLabels, $cells);
     }
 
     /**
@@ -169,20 +163,15 @@ final readonly class WidgetDataProvider
      */
     private function pointsFor(string $entityType, string $metricKey, PeriodRange $period): array
     {
-        return $this->pointsFrom($this->repository->findByPeriodKeys($entityType, $metricKey, $period->keys()), $period);
+        return $this->pointsFrom($this->repository->sumsByPeriod($entityType, $metricKey, $period->keys()), $period);
     }
 
     /**
-     * @param  MetricsSnapshotRecord[]  $records
+     * @param  array<string, float>  $byPeriod  ключ периода => сумма (sumsByPeriod)
      * @return SeriesPoint[]
      */
-    private function pointsFrom(array $records, PeriodRange $period, ?PeriodRange $useLabelsFrom = null): array
+    private function pointsFrom(array $byPeriod, PeriodRange $period, ?PeriodRange $useLabelsFrom = null): array
     {
-        $byPeriod = [];
-        foreach ($records as $record) {
-            $byPeriod[$record->period] = ($byPeriod[$record->period] ?? 0.0) + $record->value;
-        }
-
         $keys = $period->keys();
         $labelKeys = $useLabelsFrom?->keys() ?? $keys;
 
@@ -199,9 +188,7 @@ final readonly class WidgetDataProvider
      */
     private function sumFor(string $entityType, string $metricKey, array $periodKeys): float
     {
-        $records = $this->repository->findByPeriodKeys($entityType, $metricKey, $periodKeys);
-
-        return array_reduce($records, static fn (float $sum, MetricsSnapshotRecord $r) => $sum + $r->value, 0.0);
+        return array_sum($this->repository->sumsByPeriod($entityType, $metricKey, $periodKeys));
     }
 
     /**

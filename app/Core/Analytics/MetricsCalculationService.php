@@ -8,6 +8,7 @@ use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\AdapterCapability;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use DateTimeImmutable;
+use Generator;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -65,49 +66,49 @@ final class MetricsCalculationService
     ) {}
 
     /**
+     * Все записи прогона одним массивом (удобно в тестах; на больших
+     * объёмах пишите порциями через calculateInChunks()).
+     *
      * @return MetricsSnapshotRecord[]
      */
     public function calculate(DataSourceAdapter $adapter, DateRange $period): array
+    {
+        $records = [];
+        foreach ($this->calculateInChunks($adapter, $period) as $chunk) {
+            array_push($records, ...$chunk);
+        }
+
+        return $records;
+    }
+
+    /**
+     * Те же записи, что calculate(), порциями — чтобы вызывающий писал их
+     * сразу и не держал весь прогон в памяти: сначала всё, что считается по
+     * сделкам (после этого массив сделок освобождается), затем
+     * оборачиваемость, неликвиды и дни до обнуления — по месяцу за порцию.
+     * Состав и порядок обращений к адаптеру те же, что описаны в докблоке
+     * класса.
+     *
+     * @return Generator<int, MetricsSnapshotRecord[]>
+     */
+    public function calculateInChunks(DataSourceAdapter $adapter, DateRange $period): Generator
     {
         // fetchDeals() отдаётся revenue/abc/xyz-калькуляторам одним и
         // тем же значением — если адаптер вернёт Generator (как
         // MockAdapter), он допускает только однократный обход, поэтому
         // материализуем в массив сразу после единственного вызова.
         $rawDeals = $adapter->fetchDeals($period);
-        $deals = is_array($rawDeals) ? $rawDeals : iterator_to_array($rawDeals);
+        $deals = is_array($rawDeals) ? $rawDeals : iterator_to_array($rawDeals, false);
         $capabilities = $adapter->capabilities();
         $hasMovements = in_array(AdapterCapability::StockMovements, $capabilities, true);
         $hasSnapshots = in_array(AdapterCapability::StockSnapshots, $capabilities, true);
 
-        // Источник без нужных возможностей не ломает прогон: метрика не
-        // считается, причина уходит в лог. Оборачиваемости нужен реальный
-        // остаток на начало диапазона (StockSnapshots) — считать без него
-        // значит писать заведомо неверные числа.
-        $canTurnover = $hasMovements && $hasSnapshots;
-        if (! $canTurnover) {
-            $this->logger->warning(sprintf(
-                'Метрика turnover не считается: нужны capabilities StockMovements и StockSnapshots, есть %s.',
-                implode(', ', array_map(fn ($c) => $c->value, $capabilities)) ?: 'ни одной',
-            ));
-        }
-
-        $turnoverRecords = [];
-        if ($canTurnover) {
-            $openingStock = [];
-            $openingDate = (new DateTimeImmutable($period->start->format('Y-m-d')))->modify('-1 day');
-            foreach ($adapter->fetchStock($openingDate) as $balance) {
-                $openingStock[$balance->productId] = ($openingStock[$balance->productId] ?? 0.0) + $balance->quantity;
-            }
-            $turnoverRecords = $this->turnover->calculate($adapter->fetchStockMovements($period), $period, $openingStock);
-        }
-
-        $records = [
+        yield [
             ...$this->revenue->calculate($deals, $period),
             ...$this->mergeAbcXyz(
                 $this->abc->calculate($deals, $period),
                 $this->xyz->calculate($deals, $period),
             ),
-            ...$turnoverRecords,
             // Продавцы: те же deals, один вызов fetchDeals(); реестр — из конфига через контейнер.
             ...($this->sellers ?? new SellerMetricsCalculator(SellerMetricsCalculator::builtIn()))
                 ->calculate($deals, $adapter->sellerCoverage()),
@@ -116,12 +117,32 @@ final class MetricsCalculationService
             // Категории: те же deals + один fetchProducts() за прогон (карта товар → категория).
             ...$this->categories->calculate($deals, $adapter->fetchProducts()),
         ];
+        // Сделки дальше не нужны; на больших источниках это самый крупный массив прогона.
+        unset($deals, $rawDeals);
+
+        // Источник без нужных возможностей не ломает прогон: метрика не
+        // считается, причина уходит в лог. Оборачиваемости нужен реальный
+        // остаток на начало диапазона (StockSnapshots) — считать без него
+        // значит писать заведомо неверные числа.
+        if ($hasMovements && $hasSnapshots) {
+            $openingStock = [];
+            $openingDate = (new DateTimeImmutable($period->start->format('Y-m-d')))->modify('-1 day');
+            foreach ($adapter->fetchStock($openingDate) as $balance) {
+                $openingStock[$balance->productId] = ($openingStock[$balance->productId] ?? 0.0) + $balance->quantity;
+            }
+            yield $this->turnover->calculate($adapter->fetchStockMovements($period), $period, $openingStock);
+        } else {
+            $this->logger->warning(sprintf(
+                'Метрика turnover не считается: нужны capabilities StockMovements и StockSnapshots, есть %s.',
+                implode(', ', array_map(fn ($c) => $c->value, $capabilities)) ?: 'ни одной',
+            ));
+        }
 
         // Метрики остатков читают окна сами (свои вызовы fetchStock /
         // fetchStockMovements), им нужны обе возможности.
         if ($hasMovements && $hasSnapshots) {
-            array_push($records, ...$this->deadStock->calculate($adapter, $period));
-            array_push($records, ...$this->daysOfStock->calculate($adapter, $period));
+            yield $this->deadStock->calculate($adapter, $period);
+            yield from $this->daysOfStock->calculateByMonth($adapter, $period);
             $skipped = $this->daysOfStock->lastSkipped;
             $this->logger->info('days_of_stock: пропущено пар товар×склад', $skipped);
         } else {
@@ -132,8 +153,6 @@ final class MetricsCalculationService
                 implode(', ', array_map(fn ($c) => $c->value, $capabilities)) ?: 'ни одной',
             ));
         }
-
-        return $records;
     }
 
     /**

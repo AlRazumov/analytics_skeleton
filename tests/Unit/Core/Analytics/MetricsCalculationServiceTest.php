@@ -1,5 +1,7 @@
 <?php
 
+use App\Adapters\Mock\MockDataProfile;
+use App\Adapters\MockAdapter;
 use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Deal;
@@ -98,4 +100,18 @@ it('skips stock movements and turnover when the adapter does not report the Stoc
         ->and(collect($records)->where('metricKey', 'turnover'))->toHaveCount(0)
         ->and(collect($records)->where('metricKey', 'revenue')->where('entityType', 'product'))->toHaveCount(1)
         ->and(collect($records)->where('metricKey', 'revenue')->where('entityType', 'category'))->toHaveCount(1);
+});
+
+it('yields the same records in chunks: deal metrics first, then stock metrics, days_of_stock month by month', function () {
+    $adapter = new MockAdapter(MockDataProfile::Small, 42);
+    $range = new DateRange(new DateTimeImmutable('2026-06-01'), new DateTimeImmutable('2026-08-31'));
+    $service = new MetricsCalculationService;
+
+    $chunks = iterator_to_array($service->calculateInChunks($adapter, $range), false);
+    $flat = array_merge(...$chunks);
+
+    expect($flat)->toEqual($service->calculate($adapter, $range))
+        ->and(collect($chunks[0])->pluck('metricKey')->unique()->values()->all())
+        ->not->toContain('turnover', 'days_since_last_sale', 'days_of_stock')
+        ->and($chunks)->toHaveCount(1 + 1 + 1 + 3);
 });

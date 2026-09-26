@@ -42,7 +42,7 @@ class OverviewDashboardController extends Controller
             'lineChart' => $widgets->lineChart('product', 'revenue', $period),
             'barChart' => $widgets->lineChartYoY('product', 'revenue', $period),
             'period' => $end,
-            'table' => $widgets->table('product', 'revenue', $period, productNames: true),
+            'table' => $widgets->topTable('product', 'revenue', $period, (int) config('analytics.display.table_limit'), productNames: true),
         ]);
     }
 }

@@ -126,7 +126,7 @@ it('shows Russian labels instead of the metric key in the overview charts, KPI c
     expect($html)->toContain('<h3>Выручка</h3>')                       // заголовки обоих графиков
         ->and($html)->toContain('"label":'.$label)                      // подпись ряда в JS
         ->and($html)->toMatch('~kpi-label">\s*Выручка\s*<~u')
-        ->and($html)->toContain('<th>Период</th>')->toContain('<th>Выручка</th>')
+        ->and($html)->toContain('<th>Товар</th>')->toContain('<th>2026-08</th>')->toContain('<th>Итого</th>')
         ->and($html)->not->toContain('<h3>revenue</h3>')
         ->and($html)->not->toContain('"label":"revenue"')
         ->and($html)->not->toContain('<th>revenue</th>')->not->toContain('<th>period</th>');
