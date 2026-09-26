@@ -52,6 +52,34 @@ it('accepts ?period=month:YYYY-MM as the end of the window', function () {
     $this->get('/dashboards/overview?period=month:2020-01')->assertOk()->assertSee('по 2020-01');
 });
 
+it('omits the year-ago series and explains it when there is no history a year back', function () {
+    seedRevenue(['month:2026-08' => ['a' => 5]]);
+
+    $response = $this->get('/dashboards/overview')->assertOk()
+        ->assertSee('Сравнение с прошлым годом недоступно');
+    expect($response->viewData('barChart')->series)->toHaveCount(1);
+});
+
+it('shows the year-ago series when history covers the previous year', function () {
+    seedRevenue(['month:2025-07' => ['a' => 3], 'month:2026-08' => ['a' => 5]]);
+
+    $response = $this->get('/dashboards/overview')->assertOk()
+        ->assertDontSee('Сравнение с прошлым годом недоступно');
+    $series = $response->viewData('barChart')->series;
+    expect($series)->toHaveCount(2)
+        ->and($series[1]->name)->toBe('2025-03')
+        ->and(array_map(fn ($p) => $p->value, $series[1]->points))->toBe([0.0, 0.0, 0.0, 0.0, 3.0, 0.0]);
+});
+
+it('formats KPI and table numbers like the rest of the UI', function () {
+    seedRevenue(['month:2026-07' => ['a' => 1000], 'month:2026-08' => ['a' => 1234567.891]]);
+
+    $this->get('/dashboards/overview')->assertOk()
+        ->assertSee('1 235 567,89')
+        ->assertSee('1 234 567,89')
+        ->assertDontSee('1,234,567.89');
+});
+
 it('rejects invalid ?period with 404', function (string $bad) {
     $this->get('/dashboards/overview?period='.$bad)->assertNotFound();
 })->with(['garbage', 'month:2026-13', 'week:2026-W10', 'year:2026', '']);

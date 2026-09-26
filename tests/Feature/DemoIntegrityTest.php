@@ -67,6 +67,7 @@ it('fills the data behind each page', function () {
 it('has no year-ago comparison on Small, and the page still renders for a direct visit', function () {
     $this->get('/dashboards/top-products')->assertOk()->assertDontSee('с тем же месяцем прошлого года');
     $this->get('/dashboards/top-products?base=year_ago')->assertOk()->assertSee('Нет данных за прошлый год');
+    $this->get('/dashboards/overview')->assertOk()->assertSee('Сравнение с прошлым годом недоступно');
 });
 
 it('renders every page from the database when the adapter throws on every fetch', function () {

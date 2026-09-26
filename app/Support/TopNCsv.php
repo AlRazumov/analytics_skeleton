@@ -10,13 +10,16 @@ use RuntimeException;
  * CSV-выгрузка топ-N под русский Excel: UTF-8 с BOM, разделитель «;»,
  * десятичная запятая без разделителя разрядов (иначе Excel прочитает
  * число как текст). Строка «без сущности» (например «Без продавца»)
- * идёт последней, с «—» вместо места.
+ * идёт последней, с «—» вместо места. Точность — как на странице
+ * (top-n.blade.php): проценты с одним знаком, «%» — в заголовке колонки.
  */
 final class TopNCsv
 {
     private const string BOM = "\xEF\xBB\xBF";
 
     private const array INTEGER_METRICS = ['sales_count'];
+
+    private const array PERCENT_METRICS = ['share_of_total', 'trend'];
 
     public static function build(TopNData $data): string
     {
@@ -59,7 +62,11 @@ final class TopNCsv
 
     private static function number(string $key, float $value): string
     {
-        $precision = in_array($key, self::INTEGER_METRICS, true) ? 0 : 2;
+        $precision = match (true) {
+            in_array($key, self::INTEGER_METRICS, true) => 0,
+            in_array($key, self::PERCENT_METRICS, true) => 1,
+            default => 2,
+        };
 
         return number_format($value, $precision, ',', '');
     }

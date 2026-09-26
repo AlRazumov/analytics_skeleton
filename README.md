@@ -19,7 +19,7 @@
 
 ```bash
 composer install                  # или через docker, если локально нет PHP — см. документацию Sail
-cp .env.example .env              # затем в .env: DB_CONNECTION=pgsql, DB_HOST=pgsql и т.д. (см. docs/demo.md)
+cp .env.example .env              # DB_* уже под Sail/PostgreSQL (см. docs/demo.md)
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate
