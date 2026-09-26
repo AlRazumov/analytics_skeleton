@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Adapters\DataSourceAdapterFactory;
 use App\Adapters\Mock\MockDataProfile;
 use App\Console\Commands\Concerns\ResolvesMonthRange;
+use App\Core\Analytics\CategoryRevenueCalculator;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\MetricsCalculationService;
@@ -31,7 +32,7 @@ class CalculateMetrics extends Command
 
     protected $signature = 'metrics:calculate {--profile= : Профиль мока (только при analytics.source=mock)} {--period=}';
 
-    protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover) из DataSourceAdapter в metrics_snapshots';
+    protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover, категории) из DataSourceAdapter в metrics_snapshots';
 
     /** Пары [entity_type, metric_key], которые пересчитываются (и удаляются перед записью). */
     private const array METRICS = [
@@ -39,6 +40,7 @@ class CalculateMetrics extends Command
         ['product', 'abc_xyz_classification'],
         ['product', 'turnover'],
         ['product', 'lost_sales'],
+        [CategoryRevenueCalculator::ENTITY_TYPE, CategoryRevenueCalculator::METRIC_KEY],
         ['seller', 'sales_count'],
         ['seller', 'sales_amount'],
         ['seller', 'avg_check'],

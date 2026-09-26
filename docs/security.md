@@ -4,6 +4,7 @@
 
 - **Standalone-часть** (страницы на `StandaloneLayout`: `/dashboards/overview`,
   `/dashboards/abc-xyz`, `/dashboards/stock`, `/dashboards/top-products`,
+  `/dashboards/categories`,
   `/dashboards/turnover`, `/dashboards/transfers`, `/dashboards/sellers` и
   CSV-выгрузка `/dashboards/sellers/export`) требует входа:
   гость перенаправляется на `/login`. Вход/выход — `laravel/fortify` с

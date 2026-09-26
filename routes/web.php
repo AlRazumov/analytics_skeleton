@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Dashboards\AbcXyzDashboardController;
+use App\Http\Controllers\Dashboards\CategoriesDashboardController;
 use App\Http\Controllers\Dashboards\OverviewDashboardController;
 use App\Http\Controllers\Dashboards\SellersDashboardController;
 use App\Http\Controllers\Dashboards\StockDashboardController;
@@ -25,6 +26,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         ->middleware('feature:dead_stock,stockout_risk')->name('dashboards.stock');
     Route::get('/dashboards/top-products', TopProductsDashboardController::class)
         ->middleware('feature:top_products')->name('dashboards.top-products');
+    Route::get('/dashboards/categories', CategoriesDashboardController::class)
+        ->middleware('feature:categories')->name('dashboards.categories');
     Route::get('/dashboards/turnover', TurnoverDashboardController::class)
         ->middleware('feature:turnover')->name('dashboards.turnover');
     Route::get('/dashboards/transfers', TransfersDashboardController::class)
