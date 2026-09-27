@@ -14,10 +14,12 @@ use App\Core\Widgets\Contracts\EntityNameResolver;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
+use App\Core\Widgets\Contracts\ProductCategoryResolver;
 use App\Core\Widgets\Contracts\ProductNameResolver;
 use App\Core\Widgets\Contracts\WarehouseNameResolver;
 use App\Core\Widgets\TopNProvider;
 use App\Repositories\DbEntityNameResolver;
+use App\Repositories\DbProductCategoryResolver;
 use App\Repositories\DbProductNameResolver;
 use App\Repositories\DbWarehouseNameResolver;
 use App\Repositories\EloquentMetricsComparisonRepository;
@@ -49,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
             ['seller' => ['id' => SellerSalesData::NO_SELLER, 'label' => 'Без продавца']],
         ));
         $this->app->bind(WarehouseNameResolver::class, DbWarehouseNameResolver::class);
+        $this->app->bind(ProductCategoryResolver::class, DbProductCategoryResolver::class);
 
         // Пороги метрик остатков живут в config/analytics.php, а core
         // о Laravel-конфиге не знает — передаём значения конструктором.

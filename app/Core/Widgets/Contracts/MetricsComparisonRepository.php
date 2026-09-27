@@ -18,6 +18,14 @@ use InvalidArgumentException;
  * Базовый период ищется по ТОЧНОМУ ключу (тип периода, начало периода),
  * а не «предыдущей строкой»: если снэпшота за предыдущий период нет, база
  * — null, а не сравнение с позапрошлым периодом.
+ *
+ * $productCategory (top/count/bucketCounts) — необязательный фильтр по
+ * категории товара для entity_type 'product' и 'product_warehouse' (по
+ * товарной части ключа). Категория — по справочнику товаров в хранилище
+ * (тот, что синхронизируется перед расчётом); значение
+ * CategoryRevenueCalculator::NO_CATEGORY — товары без категории (null или
+ * пустая строка) и товары, которых нет в справочнике, как в самом
+ * калькуляторе. Для других entity_type фильтр — InvalidArgumentException.
  */
 interface MetricsComparisonRepository
 {
@@ -48,7 +56,8 @@ interface MetricsComparisonRepository
      *
      * @throws InvalidArgumentException если $limit не null и вне 1..1000, $by
      *                                  требует дельту, а $base не передан,
-     *                                  или $minValue > $maxValue
+     *                                  $minValue > $maxValue или фильтр
+     *                                  по категории для не-товарной сущности
      */
     public function top(
         string $metricKey,
@@ -60,13 +69,15 @@ interface MetricsComparisonRepository
         ?ComparisonBase $base = null,
         ?float $minValue = null,
         ?float $maxValue = null,
+        ?string $productCategory = null,
     ): array;
 
     /**
-     * Число сущностей за период (с тем же фильтром по value, что и в top()
-     * — совпадает с числом строк top() без limit).
+     * Число сущностей за период (с теми же фильтрами по value и категории,
+     * что и в top() — совпадает с числом строк top() без limit).
      *
-     * @throws InvalidArgumentException если $minValue > $maxValue
+     * @throws InvalidArgumentException если $minValue > $maxValue или фильтр
+     *                                  по категории для не-товарной сущности
      */
     public function count(
         string $metricKey,
@@ -74,6 +85,7 @@ interface MetricsComparisonRepository
         Period $period,
         ?float $minValue = null,
         ?float $maxValue = null,
+        ?string $productCategory = null,
     ): int;
 
     /**
@@ -92,7 +104,7 @@ interface MetricsComparisonRepository
      * @param  list<ValueRange>  $ranges
      * @return list<int>
      */
-    public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges): array;
+    public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges, ?string $productCategory = null): array;
 
     /**
      * Все строки метрики за период для товаров, у которых есть хотя бы одна

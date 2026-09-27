@@ -26,7 +26,8 @@ use App\Core\Widgets\DTO\TurnoverRow;
  * источнике данных: названия — через ProductNameResolver, один вызов на
  * виджет. Период — явный или последний из хранилища (latestPeriod), без
  * текущего времени. Пороги и лимиты приходят аргументами; лимит null —
- * все строки (CSV-выгрузка).
+ * все строки (CSV-выгрузка). $category — необязательный фильтр по
+ * категории товара (см. MetricsComparisonRepository).
  */
 final readonly class ProductTablesProvider
 {
@@ -47,7 +48,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<DeadStockRow>
      */
-    public function deadStock(?Period $period, int $thresholdDays, ?int $limit): RankedTableData
+    public function deadStock(?Period $period, int $thresholdDays, ?int $limit, ?string $category = null): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(DeadStockCalculator::METRIC_KEY, PeriodGranularity::Month);
         if ($period === null) {
@@ -57,9 +58,9 @@ final readonly class ProductTablesProvider
         $min = (float) $thresholdDays;
         $rows = $this->repository->top(
             DeadStockCalculator::METRIC_KEY, DeadStockCalculator::ENTITY_TYPE, $period, $limit,
-            RankBy::Value, Direction::Desc, null, $min,
+            RankBy::Value, Direction::Desc, null, $min, null, $category,
         );
-        $total = $this->repository->count(DeadStockCalculator::METRIC_KEY, DeadStockCalculator::ENTITY_TYPE, $period, $min);
+        $total = $this->repository->count(DeadStockCalculator::METRIC_KEY, DeadStockCalculator::ENTITY_TYPE, $period, $min, null, $category);
 
         $names = $this->names->names(array_map(static fn (MetricComparisonRow $r) => $r->entityId, $rows));
 
@@ -80,7 +81,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<StockoutRiskRow>
      */
-    public function stockoutRisk(?Period $period, int $thresholdDays, ?int $limit): RankedTableData
+    public function stockoutRisk(?Period $period, int $thresholdDays, ?int $limit, ?string $category = null): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(DaysOfStockCalculator::METRIC_KEY, PeriodGranularity::Month);
         if ($period === null) {
@@ -90,9 +91,9 @@ final readonly class ProductTablesProvider
         $max = (float) $thresholdDays;
         $rows = $this->repository->top(
             DaysOfStockCalculator::METRIC_KEY, DaysOfStockCalculator::ENTITY_TYPE, $period, $limit,
-            RankBy::Value, Direction::Asc, null, null, $max,
+            RankBy::Value, Direction::Asc, null, null, $max, $category,
         );
-        $total = $this->repository->count(DaysOfStockCalculator::METRIC_KEY, DaysOfStockCalculator::ENTITY_TYPE, $period, null, $max);
+        $total = $this->repository->count(DaysOfStockCalculator::METRIC_KEY, DaysOfStockCalculator::ENTITY_TYPE, $period, null, $max, $category);
 
         $pairs = array_map(static fn (MetricComparisonRow $r) => ProductWarehouseKey::parse($r->entityId), $rows);
         $names = $this->names->names(array_values(array_unique(array_column($pairs, 0))));
@@ -121,7 +122,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<TopProductRow>
      */
-    public function topProducts(?Period $period, Direction $dir, ?int $limit, ComparisonBase $base = ComparisonBase::Previous): RankedTableData
+    public function topProducts(?Period $period, Direction $dir, ?int $limit, ComparisonBase $base = ComparisonBase::Previous, ?string $category = null): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(self::REVENUE_METRIC, PeriodGranularity::Month);
         if ($period === null) {
@@ -129,9 +130,9 @@ final readonly class ProductTablesProvider
         }
 
         $rows = $this->repository->top(
-            self::REVENUE_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir, $base,
+            self::REVENUE_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir, $base, productCategory: $category,
         );
-        $total = $this->repository->count(self::REVENUE_METRIC, self::PRODUCT, $period);
+        $total = $this->repository->count(self::REVENUE_METRIC, self::PRODUCT, $period, productCategory: $category);
 
         $names = $this->names->names(array_map(static fn (MetricComparisonRow $r) => $r->entityId, $rows));
 
@@ -147,10 +148,10 @@ final readonly class ProductTablesProvider
      * Есть ли за период хотя бы один товар с выручкой в базовом периоде
      * (иначе сравнение с $base бессмысленно — все дельты пусты).
      */
-    public function hasRevenueBase(Period $period, ComparisonBase $base): bool
+    public function hasRevenueBase(Period $period, ComparisonBase $base, ?string $category = null): bool
     {
         return $this->repository->top(
-            self::REVENUE_METRIC, self::PRODUCT, $period, 1, RankBy::DeltaAbs, Direction::Desc, $base,
+            self::REVENUE_METRIC, self::PRODUCT, $period, 1, RankBy::DeltaAbs, Direction::Desc, $base, productCategory: $category,
         ) !== [];
     }
 
@@ -160,15 +161,15 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<TurnoverRow>
      */
-    public function turnover(?Period $period, Direction $dir, ?int $limit): RankedTableData
+    public function turnover(?Period $period, Direction $dir, ?int $limit, ?string $category = null): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(self::TURNOVER_METRIC, PeriodGranularity::Month);
         if ($period === null) {
             return new RankedTableData(null, [], 0);
         }
 
-        $rows = $this->repository->top(self::TURNOVER_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir);
-        $total = $this->repository->count(self::TURNOVER_METRIC, self::PRODUCT, $period);
+        $rows = $this->repository->top(self::TURNOVER_METRIC, self::PRODUCT, $period, $limit, RankBy::Value, $dir, productCategory: $category);
+        $total = $this->repository->count(self::TURNOVER_METRIC, self::PRODUCT, $period, productCategory: $category);
 
         $names = $this->names->names(array_map(static fn (MetricComparisonRow $r) => $r->entityId, $rows));
 

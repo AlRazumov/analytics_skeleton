@@ -20,7 +20,8 @@ use App\Support\Format;
  * Корзины считает БД (MetricsComparisonRepository::bucketCounts), здесь
  * только границы → диапазоны и подписи. Возвращает null, если данных
  * нет вовсе (страница показывает пустое состояние, график не рисуется).
- * Период — явный или последний из хранилища.
+ * Период — явный или последний из хранилища. $category — необязательный
+ * фильтр по категории товара (см. MetricsComparisonRepository).
  */
 final readonly class ProductChartsProvider
 {
@@ -33,7 +34,7 @@ final readonly class ProductChartsProvider
      *
      * @param  list<float>  $bounds  границы по возрастанию, > 0
      */
-    public function turnoverDistribution(?Period $period, array $bounds): ?LineChartData
+    public function turnoverDistribution(?Period $period, array $bounds, ?string $category = null): ?LineChartData
     {
         $ranges = [ValueRange::exactly(0.0)];
         $labels = ['0'];
@@ -46,7 +47,7 @@ final readonly class ProductChartsProvider
         $ranges[] = $previous === 0.0 ? ValueRange::open(0.0, null) : ValueRange::halfOpen($previous, null);
         $labels[] = Format::num($previous).'+';
 
-        return $this->chart('Распределение оборачиваемости (число товаров)', 'Товаров', 'turnover', self::PRODUCT, $period, $ranges, $labels);
+        return $this->chart('Распределение оборачиваемости (число товаров)', 'Товаров', 'turnover', self::PRODUCT, $period, $ranges, $labels, $category);
     }
 
     /**
@@ -56,11 +57,11 @@ final readonly class ProductChartsProvider
      *
      * @param  list<int>  $bounds
      */
-    public function deadStockAge(?Period $period, int $thresholdDays, array $bounds): ?LineChartData
+    public function deadStockAge(?Period $period, int $thresholdDays, array $bounds, ?string $category = null): ?LineChartData
     {
         [$ranges, $labels] = $this->integerBuckets($thresholdDays, $bounds);
 
-        return $this->chart('Неликвиды по возрасту, дней без продаж (число товаров)', 'Товаров', DeadStockCalculator::METRIC_KEY, DeadStockCalculator::ENTITY_TYPE, $period, $ranges, $labels);
+        return $this->chart('Неликвиды по возрасту, дней без продаж (число товаров)', 'Товаров', DeadStockCalculator::METRIC_KEY, DeadStockCalculator::ENTITY_TYPE, $period, $ranges, $labels, $category);
     }
 
     /**
@@ -68,11 +69,11 @@ final readonly class ProductChartsProvider
      *
      * @param  list<int>  $bounds
      */
-    public function daysOfStock(?Period $period, array $bounds): ?LineChartData
+    public function daysOfStock(?Period $period, array $bounds, ?string $category = null): ?LineChartData
     {
         [$ranges, $labels] = $this->integerBuckets(0, $bounds);
 
-        return $this->chart('Дни до обнуления (число пар товар × склад)', 'Пар товар × склад', DaysOfStockCalculator::METRIC_KEY, DaysOfStockCalculator::ENTITY_TYPE, $period, $ranges, $labels);
+        return $this->chart('Дни до обнуления (число пар товар × склад)', 'Пар товар × склад', DaysOfStockCalculator::METRIC_KEY, DaysOfStockCalculator::ENTITY_TYPE, $period, $ranges, $labels, $category);
     }
 
     /**
@@ -116,14 +117,14 @@ final readonly class ProductChartsProvider
      * @param  list<ValueRange>  $ranges
      * @param  list<string>  $labels
      */
-    private function chart(string $title, string $seriesName, string $metricKey, string $entityType, ?Period $period, array $ranges, array $labels): ?LineChartData
+    private function chart(string $title, string $seriesName, string $metricKey, string $entityType, ?Period $period, array $ranges, array $labels, ?string $category): ?LineChartData
     {
         $period ??= $this->repository->latestPeriod($metricKey, PeriodGranularity::Month);
         if ($period === null) {
             return null;
         }
 
-        $counts = $this->repository->bucketCounts($metricKey, $entityType, $period, $ranges);
+        $counts = $this->repository->bucketCounts($metricKey, $entityType, $period, $ranges, $category);
         if (array_sum($counts) === 0) {
             return null;
         }

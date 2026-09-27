@@ -47,7 +47,7 @@ class CategoriesDashboardController extends Controller
 
         return $this->csvResponse(
             TableCsv::categories($table, $base), 'categories', $table->period,
-            $base === ComparisonBase::YearAgo ? 'year-ago' : null,
+            [$base === ComparisonBase::YearAgo ? 'year-ago' : null],
         );
     }
 
