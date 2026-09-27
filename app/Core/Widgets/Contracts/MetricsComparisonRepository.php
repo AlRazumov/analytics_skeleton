@@ -41,9 +41,12 @@ interface MetricsComparisonRepository
      * $minValue/$maxValue — необязательный фильтр по value ТЕКУЩЕГО периода
      * (в SQL, границы включительно). Строки несут value_meta снэпшота.
      *
+     * $limit = null — все строки без LIMIT (CSV-выгрузка); страницы
+     * передают явный лимит.
+     *
      * @return list<MetricComparisonRow>
      *
-     * @throws InvalidArgumentException если $limit вне 1..1000, $by
+     * @throws InvalidArgumentException если $limit не null и вне 1..1000, $by
      *                                  требует дельту, а $base не передан,
      *                                  или $minValue > $maxValue
      */
@@ -51,7 +54,7 @@ interface MetricsComparisonRepository
         string $metricKey,
         string $entityType,
         Period $period,
-        int $limit,
+        ?int $limit,
         RankBy $by = RankBy::Value,
         Direction $dir = Direction::Desc,
         ?ComparisonBase $base = null,

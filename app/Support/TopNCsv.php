@@ -4,19 +4,14 @@ namespace App\Support;
 
 use App\Core\Widgets\DTO\TopNData;
 use App\Core\Widgets\DTO\TopNRow;
-use RuntimeException;
 
 /**
- * CSV-выгрузка топ-N под русский Excel: UTF-8 с BOM, разделитель «;»,
- * десятичная запятая без разделителя разрядов (иначе Excel прочитает
- * число как текст). Строка «без сущности» (например «Без продавца»)
- * идёт последней, с «—» вместо места. Точность — как на странице
+ * CSV-выгрузка топ-N (формат — Csv). Строка «без сущности» (например
+ * «Без продавца») идёт последней, с «—» вместо места. Точность — как на странице
  * (top-n.blade.php): проценты с одним знаком, «%» — в заголовке колонки.
  */
 final class TopNCsv
 {
-    private const string BOM = "\xEF\xBB\xBF";
-
     private const array INTEGER_METRICS = ['sales_count'];
 
     private const array PERCENT_METRICS = ['share_of_total', 'trend'];
@@ -33,15 +28,7 @@ final class TopNCsv
             $lines[] = ['—', ...self::cells($data->unassigned, $data->metric, $columns)];
         }
 
-        $out = fopen('php://temp', 'r+') ?: throw new RuntimeException('Не удалось открыть php://temp для CSV.');
-        foreach ($lines as $line) {
-            fputcsv($out, $line, ';', '"', '');
-        }
-        rewind($out);
-        $csv = stream_get_contents($out);
-        fclose($out);
-
-        return self::BOM.$csv;
+        return Csv::build($lines);
     }
 
     /**
@@ -68,6 +55,6 @@ final class TopNCsv
             default => 2,
         };
 
-        return number_format($value, $precision, ',', '');
+        return Csv::number($value, $precision);
     }
 }

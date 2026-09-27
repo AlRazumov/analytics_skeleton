@@ -37,5 +37,11 @@
             :base="$base"
             :note="config('analytics.features.dead_stock') ? 'Товары без продаж за месяц смотрите в разделе «Неликвиды».' : null"
         />
+        @if ($periodKey !== null)
+            <p><a href="{{ route('dashboards.top-products.export', array_filter([
+                'period' => $periodKey,
+                'base' => $base === ComparisonBase::Previous ? null : $base->value,
+            ])) }}">Скачать CSV</a> — все проданные за месяц товары, по убыванию выручки.</p>
+        @endif
     @endif
 </x-layouts.standalone>

@@ -19,6 +19,7 @@ use Illuminate\View\View;
 class SellersDashboardController extends Controller
 {
     use ResolvesMonthPeriod;
+    use RespondsWithCsv;
 
     private const string ENTITY_TYPE = 'seller';
 
@@ -48,12 +49,7 @@ class SellersDashboardController extends Controller
             abort(404);
         }
 
-        $month = substr($data->period, strpos($data->period, ':') + 1);
-
-        return response(TopNCsv::build($data), 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"sellers-{$metric}-{$month}.csv\"",
-        ]);
+        return $this->csvResponse(TopNCsv::build($data), "sellers-{$metric}", $data->period);
     }
 
     /**

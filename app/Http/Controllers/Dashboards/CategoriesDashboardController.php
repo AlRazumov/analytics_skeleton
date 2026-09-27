@@ -6,17 +6,21 @@ use App\Core\Domain\Enums\ComparisonBase;
 use App\Core\Domain\Period;
 use App\Core\Widgets\CategoryProvider;
 use App\Http\Controllers\Controller;
+use App\Support\TableCsv;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
  * Страница «Категории»: выручка по категориям за месяц с долей и
  * сравнением с базой (`?base=previous|year_ago`, как на «Топ товаров»;
- * иное значение — 404) и помесячная динамика за 12 месяцев.
+ * иное значение — 404) и помесячная динамика за 12 месяцев. `export` —
+ * таблица категорий в CSV.
  */
 class CategoriesDashboardController extends Controller
 {
     use ResolvesMonthPeriod;
+    use RespondsWithCsv;
 
     public function __invoke(Request $request, CategoryProvider $categories): View
     {
@@ -34,6 +38,17 @@ class CategoriesDashboardController extends Controller
             'baseMissing' => $resolved !== null && $base === ComparisonBase::YearAgo && ! $yearAgoAvailable,
             'periodKey' => $table->period,
         ]);
+    }
+
+    public function export(Request $request, CategoryProvider $categories): Response
+    {
+        $base = $this->requestedBase($request);
+        $table = $categories->table($this->requestedMonth($request), $base);
+
+        return $this->csvResponse(
+            TableCsv::categories($table, $base), 'categories', $table->period,
+            $base === ComparisonBase::YearAgo ? 'year-ago' : null,
+        );
     }
 
     private function requestedBase(Request $request): ComparisonBase
