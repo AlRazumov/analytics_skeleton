@@ -8,18 +8,22 @@ use App\Core\Domain\Period;
 use App\Core\Widgets\ProductChartsProvider;
 use App\Core\Widgets\ProductTablesProvider;
 use App\Http\Controllers\Controller;
+use App\Support\TableCsv;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
  * Страница «Топ товаров»: топ и анти-топ по выручке за месяц. База
  * сравнения — `?base=previous|year_ago` (по умолчанию previous; иное
  * значение — 404). Если в выбранной базе нет данных, страница отдаёт
- * пояснение вместо таблиц.
+ * пояснение вместо таблиц. `export` — все товары с выручкой за месяц
+ * (по убыванию) в CSV, с той же базой сравнения.
  */
 class TopProductsDashboardController extends Controller
 {
     use ResolvesMonthPeriod;
+    use RespondsWithCsv;
 
     public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts): View
     {
@@ -44,6 +48,17 @@ class TopProductsDashboardController extends Controller
             'baseMissing' => $resolved !== null && $base === ComparisonBase::YearAgo && ! $yearAgoAvailable,
             'periodKey' => $top->period,
         ]);
+    }
+
+    public function export(Request $request, ProductTablesProvider $tables): Response
+    {
+        $base = $this->requestedBase($request);
+        $data = $tables->topProducts($this->requestedMonth($request), Direction::Desc, null, $base);
+
+        return $this->csvResponse(
+            TableCsv::topProducts($data, $base), 'top-products', $data->period,
+            $base === ComparisonBase::YearAgo ? 'year-ago' : null,
+        );
     }
 
     private function requestedBase(Request $request): ComparisonBase

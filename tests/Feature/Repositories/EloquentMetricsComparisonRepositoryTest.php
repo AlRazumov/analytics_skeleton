@@ -35,7 +35,7 @@ function compareRows(string $periodKey, ComparisonBase $base, string $metricKey 
     return $rows;
 }
 
-function topIds(string $periodKey, int $limit, RankBy $by = RankBy::Value, Direction $dir = Direction::Desc, ?ComparisonBase $base = null): array
+function topIds(string $periodKey, ?int $limit, RankBy $by = RankBy::Value, Direction $dir = Direction::Desc, ?ComparisonBase $base = null): array
 {
     return array_map(
         fn ($r) => $r->entityId,
@@ -122,6 +122,17 @@ it('returns all rows when limit exceeds their number', function () {
     seedMetric(['month:2026-02' => ['a' => 1.0, 'b' => 2.0]]);
 
     expect(topIds('month:2026-02', 1000))->toBe(['b', 'a']);
+});
+
+it('returns all rows past the page cap when limit is null', function () {
+    $values = [];
+    foreach (range(1, 1001) as $i) {
+        $values[sprintf('p%04d', $i)] = (float) $i;
+    }
+    seedMetric(['month:2026-02' => $values]);
+
+    $ids = topIds('month:2026-02', null);
+    expect($ids)->toHaveCount(1001)->and($ids[0])->toBe('p1001')->and(end($ids))->toBe('p0001');
 });
 
 it('ranks by absolute delta including negative deltas and excludes rows without a base', function () {

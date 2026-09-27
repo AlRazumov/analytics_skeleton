@@ -71,6 +71,10 @@
                         @endforelse
                     </tbody>
                 </table>
+                <p><a href="{{ route('dashboards.categories.export', array_filter([
+                    'period' => $table->period,
+                    'base' => $yearAgo ? $base->value : null,
+                ])) }}">Скачать CSV</a></p>
             @endif
         </div>
     @endif

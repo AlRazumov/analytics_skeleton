@@ -13,7 +13,8 @@ use App\Core\Widgets\DTO\TransferTableData;
 
 /**
  * Данные страницы перемещений: рекомендации сервиса + названия из
- * справочников (по одному запросу на товары и на склады), лимит строк.
+ * справочников (по одному запросу на товары и на склады), лимит строк
+ * (null — все, для CSV-выгрузки).
  * Лежит в app/Services (а не в core/Widgets), потому что использует
  * прикладной сервис; адаптера не касается. Период — явный или последний
  * у метрики days_of_stock.
@@ -27,7 +28,7 @@ final readonly class TransferTableProvider
         private WarehouseNameResolver $warehouses,
     ) {}
 
-    public function forPeriod(?Period $period, int $limit): TransferTableData
+    public function forPeriod(?Period $period, ?int $limit): TransferTableData
     {
         $period ??= $this->repository->latestPeriod(DaysOfStockCalculator::METRIC_KEY, PeriodGranularity::Month);
         if ($period === null) {
@@ -39,7 +40,7 @@ final readonly class TransferTableProvider
         }
 
         $plan = $this->service->forPeriod($period)->plan;
-        $shown = array_slice($plan->recommendations, 0, max(0, $limit));
+        $shown = $limit === null ? $plan->recommendations : array_slice($plan->recommendations, 0, max(0, $limit));
 
         $products = $this->products->names(array_values(array_unique(array_map(static fn ($r) => $r->productId, $shown))));
         $warehouses = $this->warehouses->names(array_values(array_unique(array_merge(

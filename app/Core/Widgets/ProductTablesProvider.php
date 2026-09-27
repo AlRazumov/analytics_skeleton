@@ -25,7 +25,8 @@ use App\Core\Widgets\DTO\TurnoverRow;
  * топ/анти-топ) поверх MetricsComparisonRepository. Не знает об
  * источнике данных: названия — через ProductNameResolver, один вызов на
  * виджет. Период — явный или последний из хранилища (latestPeriod), без
- * текущего времени. Пороги и лимиты приходят аргументами.
+ * текущего времени. Пороги и лимиты приходят аргументами; лимит null —
+ * все строки (CSV-выгрузка).
  */
 final readonly class ProductTablesProvider
 {
@@ -46,7 +47,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<DeadStockRow>
      */
-    public function deadStock(?Period $period, int $thresholdDays, int $limit): RankedTableData
+    public function deadStock(?Period $period, int $thresholdDays, ?int $limit): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(DeadStockCalculator::METRIC_KEY, PeriodGranularity::Month);
         if ($period === null) {
@@ -79,7 +80,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<StockoutRiskRow>
      */
-    public function stockoutRisk(?Period $period, int $thresholdDays, int $limit): RankedTableData
+    public function stockoutRisk(?Period $period, int $thresholdDays, ?int $limit): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(DaysOfStockCalculator::METRIC_KEY, PeriodGranularity::Month);
         if ($period === null) {
@@ -120,7 +121,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<TopProductRow>
      */
-    public function topProducts(?Period $period, Direction $dir, int $limit, ComparisonBase $base = ComparisonBase::Previous): RankedTableData
+    public function topProducts(?Period $period, Direction $dir, ?int $limit, ComparisonBase $base = ComparisonBase::Previous): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(self::REVENUE_METRIC, PeriodGranularity::Month);
         if ($period === null) {
@@ -159,7 +160,7 @@ final readonly class ProductTablesProvider
      *
      * @return RankedTableData<TurnoverRow>
      */
-    public function turnover(?Period $period, Direction $dir, int $limit): RankedTableData
+    public function turnover(?Period $period, Direction $dir, ?int $limit): RankedTableData
     {
         $period ??= $this->repository->latestPeriod(self::TURNOVER_METRIC, PeriodGranularity::Month);
         if ($period === null) {

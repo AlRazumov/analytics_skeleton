@@ -6,6 +6,9 @@
     @endif
     @if ($deadStock !== null)
         <x-widgets.dead-stock-table :data="$deadStock" :threshold-days="$deadStockDays" />
+        @if ($deadStock->period !== null)
+            <p><a href="{{ route('dashboards.stock.export.dead-stock', ['period' => $deadStock->period]) }}">Скачать CSV</a> — все неликвиды за месяц.</p>
+        @endif
     @endif
 
     @if ($daysOfStockChart !== null)
@@ -13,5 +16,8 @@
     @endif
     @if ($stockoutRisk !== null)
         <x-widgets.stockout-risk-table :data="$stockoutRisk" :threshold-days="$stockoutRiskDays" />
+        @if ($stockoutRisk->period !== null)
+            <p><a href="{{ route('dashboards.stock.export.stockout-risk', ['period' => $stockoutRisk->period]) }}">Скачать CSV</a> — все пары с риском дефицита за месяц.</p>
+        @endif
     @endif
 </x-layouts.standalone>

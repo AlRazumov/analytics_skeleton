@@ -6,7 +6,7 @@
   `/dashboards/abc-xyz`, `/dashboards/stock`, `/dashboards/top-products`,
   `/dashboards/categories`,
   `/dashboards/turnover`, `/dashboards/transfers`, `/dashboards/sellers` и
-  CSV-выгрузка `/dashboards/sellers/export`) требует входа:
+  CSV-выгрузки `/dashboards/*/export…`) требует входа:
   гость перенаправляется на `/login`. Вход/выход — `laravel/fortify` с
   отключёнными фичами (`features = []`): нет регистрации, сброса пароля,
   верификации email, 2FA. Вход ограничен 5 попытками в минуту на пару

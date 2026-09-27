@@ -44,14 +44,14 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         string $metricKey,
         string $entityType,
         Period $period,
-        int $limit,
+        ?int $limit,
         RankBy $by = RankBy::Value,
         Direction $dir = Direction::Desc,
         ?ComparisonBase $base = null,
         ?float $minValue = null,
         ?float $maxValue = null,
     ): array {
-        if ($limit < 1 || $limit > self::MAX_LIMIT) {
+        if ($limit !== null && ($limit < 1 || $limit > self::MAX_LIMIT)) {
             throw new InvalidArgumentException('limit должен быть в диапазоне 1..'.self::MAX_LIMIT.", получено {$limit}.");
         }
         if ($by !== RankBy::Value && $base === null) {
@@ -70,9 +70,12 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
                 ->orderByRaw(self::DELTA_PCT_SQL." {$direction}"),
         };
 
-        return array_values($query->orderByRaw('cur.entity_id COLLATE "C" asc')
-            ->limit($limit)
-            ->get()
+        $query->orderByRaw('cur.entity_id COLLATE "C" asc');
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        return array_values($query->get()
             ->map(fn (object $row) => $this->toRow($entityType, $row))
             ->all());
     }
