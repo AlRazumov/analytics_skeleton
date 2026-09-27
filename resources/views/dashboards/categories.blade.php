@@ -58,7 +58,17 @@
                                 $arrow = $row->deltaAbs === null || $row->deltaAbs == 0 ? '' : ($row->deltaAbs > 0 ? '▲ ' : '▼ ');
                             @endphp
                             <tr>
-                                <td>{{ $row->categoryName }}</td>
+                                <td>
+                                    @if (config('analytics.features.top_products'))
+                                        <a href="{{ route('dashboards.top-products', array_filter([
+                                            'period' => $table->period,
+                                            'base' => $yearAgo ? $base->value : null,
+                                            'category' => $row->categoryId,
+                                        ])) }}">{{ $row->categoryName }}</a>
+                                    @else
+                                        {{ $row->categoryName }}
+                                    @endif
+                                </td>
                                 <td>{{ Format::num($row->value) }}</td>
                                 <td>@if ($row->sharePct === null)—@else{{ Format::num($row->sharePct, 1) }}@endif</td>
                                 <td>@if ($row->baseValue === null)—@else{{ Format::num($row->baseValue) }}@endif</td>

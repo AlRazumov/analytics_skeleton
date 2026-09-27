@@ -126,7 +126,8 @@ final readonly class CategoryProvider
         return new LineChartData('Выручка по категориям по месяцам', $series);
     }
 
-    private static function label(string $categoryId): string
+    /** Подпись категории: ключ как есть, NO_CATEGORY — NO_CATEGORY_LABEL. */
+    public static function label(string $categoryId): string
     {
         return $categoryId === CategoryRevenueCalculator::NO_CATEGORY ? self::NO_CATEGORY_LABEL : $categoryId;
     }

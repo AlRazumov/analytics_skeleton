@@ -2,6 +2,8 @@
 
 namespace App\Repositories;
 
+use App\Core\Analytics\CategoryRevenueCalculator;
+use App\Core\Analytics\ProductWarehouseKey;
 use App\Core\Domain\Enums\ComparisonBase;
 use App\Core\Domain\Enums\Direction;
 use App\Core\Domain\Enums\PeriodGranularity;
@@ -50,6 +52,7 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         ?ComparisonBase $base = null,
         ?float $minValue = null,
         ?float $maxValue = null,
+        ?string $productCategory = null,
     ): array {
         if ($limit !== null && ($limit < 1 || $limit > self::MAX_LIMIT)) {
             throw new InvalidArgumentException('limit должен быть в диапазоне 1..'.self::MAX_LIMIT.", получено {$limit}.");
@@ -60,6 +63,7 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
 
         $query = $this->query($metricKey, $entityType, $period, $base);
         $this->applyValueRange($query, $minValue, $maxValue);
+        $this->applyProductCategory($query, $entityType, $productCategory);
 
         // Направление берётся только из enum — в SQL подставляется константа.
         $direction = $dir === Direction::Asc ? 'asc' : 'desc';
@@ -86,9 +90,11 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         Period $period,
         ?float $minValue = null,
         ?float $maxValue = null,
+        ?string $productCategory = null,
     ): int {
         $query = $this->query($metricKey, $entityType, $period, null);
         $this->applyValueRange($query, $minValue, $maxValue);
+        $this->applyProductCategory($query, $entityType, $productCategory);
 
         return $query->count();
     }
@@ -105,7 +111,7 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             : Period::containing($granularity, new DateTimeImmutable(substr((string) $start, 0, 10)));
     }
 
-    public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges): array
+    public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges, ?string $productCategory = null): array
     {
         if ($ranges === []) {
             return [];
@@ -129,9 +135,10 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             $counts[] = 'COUNT(*) FILTER (WHERE '.implode(' AND ', $conditions).')';
         }
 
-        $json = $this->current($metricKey, $entityType, $period)
-            ->selectRaw('json_build_array('.implode(', ', $counts).') AS counts', $bindings)
-            ->value('counts');
+        $query = $this->current($metricKey, $entityType, $period)
+            ->selectRaw('json_build_array('.implode(', ', $counts).') AS counts', $bindings);
+        $this->applyProductCategory($query, $entityType, $productCategory);
+        $json = $query->value('counts');
         $decoded = json_decode((string) $json, true, flags: JSON_THROW_ON_ERROR);
 
         return array_map(static fn (mixed $n) => is_numeric($n) ? (int) $n : 0, is_array($decoded) ? array_values($decoded) : []);
@@ -164,6 +171,36 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
         if ($maxValue !== null) {
             $query->where('cur.value', '<=', $maxValue);
         }
+    }
+
+    /**
+     * Товар строки — сам entity_id (product) или его товарная часть
+     * (product_warehouse); категория — из staging_products (EXISTS по
+     * уникальному external_id).
+     */
+    private function applyProductCategory(Builder $query, string $entityType, ?string $category): void
+    {
+        if ($category === null) {
+            return;
+        }
+
+        $productId = match ($entityType) {
+            'product' => 'cur.entity_id',
+            ProductWarehouseKey::ENTITY_TYPE => "split_part(cur.entity_id, ':', 1)",
+            default => throw new InvalidArgumentException("Фильтр по категории товара неприменим к entity_type '{$entityType}'."),
+        };
+
+        if ($category === CategoryRevenueCalculator::NO_CATEGORY) {
+            $query->whereNotExists(fn (Builder $sub) => $sub->selectRaw('1')->from('staging_products as sp')
+                ->whereRaw("sp.external_id = {$productId}")
+                ->whereNotNull('sp.category')->where('sp.category', '<>', ''));
+
+            return;
+        }
+
+        $query->whereExists(fn (Builder $sub) => $sub->selectRaw('1')->from('staging_products as sp')
+            ->whereRaw("sp.external_id = {$productId}")
+            ->where('sp.category', $category));
     }
 
     private function current(string $metricKey, string $entityType, Period $period): Builder

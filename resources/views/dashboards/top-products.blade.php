@@ -4,10 +4,16 @@
     $link = fn (ComparisonBase $target) => route('dashboards.top-products', array_filter([
         'period' => request()->query('period'),
         'base' => $target === ComparisonBase::Previous ? null : $target->value,
+        'category' => $category,
     ]));
 @endphp
 <x-layouts.standalone title="Топ товаров">
     <h1>Топ товаров по выручке</h1>
+
+    <x-widgets.category-filter :options="$categoryOptions" :selected="$category" :keep="[
+        'period' => request()->query('period'),
+        'base' => $base === ComparisonBase::Previous ? null : $base->value,
+    ]" />
 
     @if ($yearAgoAvailable)
         <p class="base-switch">
@@ -22,7 +28,7 @@
 
     @if ($baseMissing)
         <div class="widget">
-            <p>Нет данных за прошлый год: за {{ substr($periodKey, strpos($periodKey, ':') + 1) }} нет ни одного товара с выручкой в том же месяце прошлого года.</p>
+            <p>Нет данных за прошлый год: за {{ substr($periodKey, strpos($periodKey, ':') + 1) }} нет ни одного товара{{ $category === null ? '' : ' этой категории' }} с выручкой в том же месяце прошлого года.</p>
             <p><a href="{{ $link(ComparisonBase::Previous) }}">Показать сравнение с предыдущим месяцем</a></p>
         </div>
     @else
@@ -41,7 +47,8 @@
             <p><a href="{{ route('dashboards.top-products.export', array_filter([
                 'period' => $periodKey,
                 'base' => $base === ComparisonBase::Previous ? null : $base->value,
-            ])) }}">Скачать CSV</a> — все проданные за месяц товары, по убыванию выручки.</p>
+                'category' => $category,
+            ])) }}">Скачать CSV</a> — все проданные за месяц товары{{ $category === null ? '' : ' категории' }}, по убыванию выручки.</p>
         @endif
     @endif
 </x-layouts.standalone>
