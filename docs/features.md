@@ -13,7 +13,7 @@
 | `turnover` | `ANALYTICS_FEATURE_TURNOVER` | страницу `/dashboards/turnover` с CSV-выгрузкой и пункт «Оборачиваемость» |
 | `transfers` | `ANALYTICS_FEATURE_TRANSFERS` | страницу `/dashboards/transfers` с CSV-выгрузкой и пункт «Перемещения» |
 | `sellers` | `ANALYTICS_FEATURE_SELLERS` | блок «Топ-3 продавцов» на обзоре, страницу `/dashboards/sellers` с CSV-выгрузкой и пункт «Продавцы» |
-| `categories` | `ANALYTICS_FEATURE_CATEGORIES` | страницу `/dashboards/categories` с CSV-выгрузкой, пункт «Категории» и фильтр `?category=` на «Топ товаров», «Остатках», «Оборачиваемости» (параметр — 404) |
+| `categories` | `ANALYTICS_FEATURE_CATEGORIES` | страницу `/dashboards/categories` с CSV-выгрузкой, пункт «Категории» и фильтр `?category=` на «Топ товаров», «Остатках», «Оборачиваемости», «ABC/XYZ» (параметр — 404) |
 
 Страница `/dashboards/stock` и пункт «Остатки» скрыты (404), только если
 выключены **оба** флага — `dead_stock` и `stockout_risk`.

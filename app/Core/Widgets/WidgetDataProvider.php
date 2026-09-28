@@ -134,7 +134,12 @@ final readonly class WidgetDataProvider
      * произвольный Period, и при его рассинхроне с периодом реального
      * прогона metrics:calculate матрица молча оказывалась пустой.
      */
-    public function abcXyzMatrix(): MatrixData
+    /**
+     * Матрица ABC/XYZ за последний период. $category — только товары этой
+     * категории справочника; классы при этом те же, что посчитаны по всему
+     * ассортименту (фильтр, а не пересчёт Парето внутри категории).
+     */
+    public function abcXyzMatrix(?string $category = null): MatrixData
     {
         $latestPeriod = $this->repository->latestPeriodFor(self::ABC_XYZ_ENTITY_TYPE, self::ABC_XYZ_METRIC_KEY);
 
@@ -148,6 +153,7 @@ final readonly class WidgetDataProvider
             $latestPeriod,
             'abc_class',
             'xyz_class',
+            $category,
         );
 
         $rowLabels = array_values(array_unique(array_map(static fn (MatrixCellData $c) => $c->rowKey, $cells)));

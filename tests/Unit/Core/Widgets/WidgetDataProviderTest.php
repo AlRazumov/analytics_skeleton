@@ -48,8 +48,12 @@ function fakeRepository(array $records): MetricsSnapshotRepository
             return ['rows' => $rows, 'total' => count($byEntity)];
         }
 
-        public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey): array
+        public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey, ?string $productCategory = null): array
         {
+            if ($productCategory !== null) {
+                throw new LogicException('Фильтр по категории проверяется на БД (CategoryFilterTest).');
+            }
+
             $cells = [];
             foreach ($this->findByPeriodKeys($entityType, $metricKey, [$periodKey]) as $r) {
                 $row = (string) ($r->valueMeta[$rowMetaKey] ?? '?');
