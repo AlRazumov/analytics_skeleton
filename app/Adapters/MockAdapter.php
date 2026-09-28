@@ -138,7 +138,8 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         foreach (['dead' => $this->scenarios->deadCount, 'near_zero' => $this->scenarios->nearZeroCount,
             'gaps' => $this->scenarios->gapCount, 'spike' => $this->scenarios->spikeCount,
             'seasonal' => $this->scenarios->seasonalCount, 'imbalance' => $this->scenarios->imbalanceCount,
-            'lost_sales' => $this->scenarios->lostSalesCount, 'no_sales_donor' => $this->scenarios->noSalesDonorCount] as $kind => $count) {
+            'lost_sales' => $this->scenarios->lostSalesCount, 'no_sales_donor' => $this->scenarios->noSalesDonorCount,
+            'returns' => $this->scenarios->returnsCount] as $kind => $count) {
             $ranges[$kind] = [$next, $next + $count - 1];
             $next += $count;
         }
@@ -258,6 +259,9 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         // месяце окна истории у этих товаров не должно быть НИ ОДНОЙ
         // сделки, поэтому обычные случайные попадания на них здесь гасятся.
         $isLastMonth = $monthStart->format('Y-m') === $this->historyEnd()->format('Y-m');
+        // Обычные сделки товаров с возвратами последнего месяца — их тоже
+        // возвращают (см. returnsDeals).
+        $toRefund = [];
 
         for ($i = 1; $i <= $count; $i++) {
             $productIndex = $randomizer->getInt(1, $productCount);
@@ -271,18 +275,101 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
                 continue;
             }
 
-            yield new Deal(
+            $deal = new Deal(
                 id: 'deal-'.($firstNumber + $i),
                 productId: "prod-{$productIndex}",
                 amount: $amount,
                 date: $date,
                 sellerId: $sellerId,
             );
+            if ($isLastMonth && $this->kindOf($productIndex) === 'returns') {
+                $toRefund[] = $deal;
+            }
+
+            yield $deal;
         }
 
         if (! $isLastMonth) {
             yield from $this->lostSalesGuaranteedDeals($monthStart, $monthEnd);
         }
+
+        yield from $this->returnsDeals($monthStart, $monthEnd, $isLastMonth ? $toRefund : null);
+    }
+
+    /**
+     * Сценарий «возвраты» (отрицательные сделки, как их допускает контракт):
+     * товары из диапазона 'returns' получают одну гарантированную продажу в
+     * каждом месяце окна истории. В последнем месяце ($toRefund не null)
+     * возвращаются все продажи месяца — обычные ($toRefund) и гарантированная:
+     * нетто месяца 0, хотя продажи были. У каждого второго товара сценария
+     * (нечётная позиция) в последнем месяце возвращается ещё и гарантированная
+     * продажа предыдущего месяца — нетто месяца отрицательное. Возврат — с тем
+     * же продавцом, не раньше продажи. Отдельные потоки случайных чисел:
+     * обычные сделки и остальные сценарии не меняются.
+     *
+     * @param  list<Deal>|null  $toRefund
+     * @return Generator<Deal>
+     */
+    private function returnsDeals(DateTimeImmutable $monthStart, DateTimeImmutable $monthEnd, ?array $toRefund): Generator
+    {
+        $sales = $this->returnsGuaranteedSales($monthStart, $monthEnd);
+        yield from $sales;
+
+        if ($toRefund === null) {
+            return;
+        }
+
+        $randomizer = $this->randomizerFor('returns-refunds:'.$monthStart->format('Y-m'));
+        foreach ([...$toRefund, ...array_values($sales)] as $sale) {
+            yield new Deal(
+                id: 'deal-return-'.$sale->id,
+                productId: $sale->productId,
+                amount: -$sale->amount,
+                date: $this->randomDateBetween($randomizer, $sale->date, $monthEnd),
+                sellerId: $sale->sellerId,
+            );
+        }
+
+        $previousMonth = $monthStart->modify('-1 month');
+        $previousSales = $this->returnsGuaranteedSales($previousMonth, $monthStart->modify('-1 second'));
+        foreach ($this->productIndexesOf('returns') as $k => $index) {
+            if ($k % 2 === 1) {
+                $sale = $previousSales[$index];
+                yield new Deal(
+                    id: 'deal-return-'.$sale->id,
+                    productId: $sale->productId,
+                    amount: -$sale->amount,
+                    date: $this->randomDateBetween($randomizer, $monthStart, $monthEnd),
+                    sellerId: $sale->sellerId,
+                );
+            }
+        }
+    }
+
+    /**
+     * Гарантированная продажа месяца каждого товара сценария 'returns'.
+     *
+     * @return array<int, Deal> индекс товара => продажа
+     */
+    private function returnsGuaranteedSales(DateTimeImmutable $monthStart, DateTimeImmutable $monthEnd): array
+    {
+        $randomizer = $this->randomizerFor('returns-deals:'.$monthStart->format('Y-m'));
+        $sellerRandomizer = $this->randomizerFor('returns-sellers:'.$monthStart->format('Y-m'));
+
+        $sales = [];
+        foreach ($this->productIndexesOf('returns') as $index) {
+            $amount = $randomizer->getInt(500, 50000) / 100;
+            $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
+            $sales[$index] = new Deal(
+                id: 'deal-returns-'.$index.'-'.$monthStart->format('Y-m'),
+                productId: "prod-{$index}",
+                amount: $amount,
+                date: $date,
+                sellerId: $this->pickSeller($sellerRandomizer, $date),
+            );
+        }
+
+        return $sales;
     }
 
     /**
@@ -533,6 +620,16 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             ];
         }
 
+        $returns = [];
+        $lastMonth = new DateTimeImmutable($this->historyEnd()->format('Y-m-01'));
+        $previousSales = $this->returnsGuaranteedSales($lastMonth->modify('-1 month'), $lastMonth->modify('-1 second'));
+        foreach ($this->productIndexesOf('returns') as $k => $i) {
+            $returns["prod-{$i}"] = [
+                'month' => $lastMonth->format('Y-m'),
+                'month_net' => $k % 2 === 1 ? -$previousSales[$i]->amount : 0.0,
+            ];
+        }
+
         return new MockScenarioManifest(
             historyStart: $this->historyStart->format('Y-m-d'),
             historyEnd: $this->historyEnd()->format('Y-m-d'),
@@ -548,6 +645,7 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             hasTransfers: count($this->warehouseIds) > 1,
             lostSalesProductIds: $ids('lost_sales'),
             noSalesDonorProducts: $noSalesDonor,
+            returnProducts: $returns,
         );
     }
 

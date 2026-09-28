@@ -7,7 +7,11 @@ use App\Core\Domain\Deal;
 /**
  * Продажи, свёрнутые по (месяц, продавец): количество и сумма, плюс первый
  * и последний день продаж каждого продавца во всём наборе (для нормировки
- * новичков и уволенных). Сделки без продавца собираются под NO_SELLER, а не
+ * новичков и уволенных). Сумма — нетто: возвраты (отрицательные сделки; в
+ * Deal нет признака возврата/типа документа) вычитаются. Количество и дни
+ * активности — только по продажам (сделкам с положительной суммой):
+ * возврат — не сделка продавца, иначе он завышал бы число сделок и занижал
+ * средний чек. Сделки без продавца собираются под NO_SELLER, а не
  * теряются — сумма по ключам месяца всегда равна итогу по сделкам месяца.
  */
 final class SellerSalesData
@@ -32,14 +36,15 @@ final class SellerSalesData
             $month = $deal->date->format('Y-m');
             $day = $deal->date->format('Y-m-d');
 
-            $cell = $data->byMonth[$month][$key] ?? ['count' => 0, 'amount' => 0.0];
-            // Нетто: в Deal нет признака возврата/типа документа, поэтому сумма
-            // сделки берётся как есть (возвраты, если источник отдаёт их
-            // отрицательными сделками, вычитаются сами).
-            $data->byMonth[$month][$key] = ['count' => $cell['count'] + 1, 'amount' => $cell['amount'] + $deal->amount];
+            $isSale = $deal->amount > 0.0;
 
-            [$first, $last] = $data->activity[$key] ?? [$day, $day];
-            $data->activity[$key] = [min($first, $day), max($last, $day)];
+            $cell = $data->byMonth[$month][$key] ?? ['count' => 0, 'amount' => 0.0];
+            $data->byMonth[$month][$key] = ['count' => $cell['count'] + ($isSale ? 1 : 0), 'amount' => $cell['amount'] + $deal->amount];
+
+            if ($isSale) {
+                [$first, $last] = $data->activity[$key] ?? [$day, $day];
+                $data->activity[$key] = [min($first, $day), max($last, $day)];
+            }
         }
         ksort($data->byMonth);
 

@@ -18,10 +18,15 @@ use App\Core\Widgets\DTO\MetricsSnapshotRecord;
  * остаток — класс C. Пороги 80/15/5 — классический вариант Парето для
  * ABC-анализа, не выведены из ТЗ или реальных данных клиента.
  *
+ * Выручка — нетто (возвраты — отрицательные сделки). В накопление и в
+ * общую сумму входят только товары с нетто > 0, поэтому доля не
+ * превышает 1 и не зависит от возвратов по другим товарам; товары с
+ * нетто ≤ 0 (продажи погашены возвратами) — сразу класс C.
+ *
  * Один снэпшот на товар за весь период (не по месяцам — классификация
  * не имеет смысла для отдельного месяца при таком методе), period —
  * последний месяц запрошенного периода, value — суммарная выручка
- * товара за период, value_meta — только abc_class (xyz_class
+ * товара за период (нетто, может быть ≤ 0), value_meta — только abc_class (xyz_class
  * добавляется XyzClassifier'ом и объединяется на уровне сервиса,
  * вызывающего оба классификатора).
  */
@@ -51,20 +56,23 @@ final class AbcClassifier
         }
 
         arsort($totalByProduct);
-        $grandTotal = array_sum($totalByProduct);
+        $grandTotal = array_sum(array_filter($totalByProduct, static fn (float $value): bool => $value > 0.0));
         $lastMonth = $period->end->format('Y-m');
 
         $records = [];
         $cumulative = 0.0;
         foreach ($totalByProduct as $productId => $value) {
-            $cumulative += $value;
-            $cumulativeShare = $grandTotal > 0.0 ? $cumulative / $grandTotal : 1.0;
-
-            $abcClass = match (true) {
-                $cumulativeShare <= self::THRESHOLD_A => 'A',
-                $cumulativeShare <= self::THRESHOLD_B => 'B',
-                default => 'C',
-            };
+            if ($value > 0.0) {
+                $cumulative += $value;
+                $cumulativeShare = $cumulative / $grandTotal;
+                $abcClass = match (true) {
+                    $cumulativeShare <= self::THRESHOLD_A => 'A',
+                    $cumulativeShare <= self::THRESHOLD_B => 'B',
+                    default => 'C',
+                };
+            } else {
+                $abcClass = 'C';
+            }
 
             $records[] = new MetricsSnapshotRecord(
                 entityType: self::ENTITY_TYPE,
