@@ -126,5 +126,12 @@ return [
         'dead_stock_age_bounds' => [180, 365],
         'days_of_stock_bounds' => [8, 15, 31, 61],
         'turnover_bounds' => [1.0, 2.0],
+
+        // Индикатор свежести данных: часовой пояс времени расчёта на страницах
+        // (приложение и планировщик — в UTC) и через сколько часов после
+        // последнего успешного расчёта данные помечаются устаревшими
+        // (ночной расчёт + запас).
+        'timezone' => env('ANALYTICS_DISPLAY_TIMEZONE', 'Europe/Moscow'),
+        'stale_after_hours' => (int) env('ANALYTICS_STALE_AFTER_HOURS', 36),
     ],
 ];

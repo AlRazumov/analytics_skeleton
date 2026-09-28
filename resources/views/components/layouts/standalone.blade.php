@@ -71,6 +71,8 @@
         .form-error { color: crimson; font-size: 0.9rem; margin-top: 0.5rem; }
         .category-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0 1rem; }
         .category-filter select, .category-filter button { font-size: 0.95rem; padding: 0.25rem 0.5rem; }
+        .freshness-bar { font-size: 0.85rem; color: #4b5563; margin-bottom: 1rem; }
+        .freshness-bar--warning { color: #92400e; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px; padding: 0.5rem 0.75rem; }
         .month-switcher { display: flex; flex-wrap: wrap; gap: 1rem; align-items: baseline; margin: 0.5rem 0 1rem; }
         .content {
             padding: 1.5rem;
@@ -136,6 +138,9 @@
     </header>
 
     <main class="content">
+        @unless ($guest)
+            <x-freshness-bar />
+        @endunless
         {{ $slot }}
     </main>
 
