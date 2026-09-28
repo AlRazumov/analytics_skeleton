@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Dashboards;
 
+use App\Core\Analytics\DaysOfStockCalculator;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Http\Controllers\Controller;
 use App\Services\TransferTableProvider;
 use App\Support\TableCsv;
@@ -18,11 +20,14 @@ class TransfersDashboardController extends Controller
     use ResolvesMonthPeriod;
     use RespondsWithCsv;
 
-    public function __invoke(Request $request, TransferTableProvider $transfers): View
+    public function __invoke(Request $request, TransferTableProvider $transfers, MonthNavigationProvider $months): View
     {
+        $data = $transfers->forPeriod($this->requestedMonth($request), (int) config('analytics.display.table_limit'));
+
         return view('dashboards.transfers', [
-            'transfers' => $transfers->forPeriod($this->requestedMonth($request), (int) config('analytics.display.table_limit')),
+            'transfers' => $data,
             'thresholds' => (array) config('analytics.transfers'),
+            'monthNav' => $months->for($data->period, [[DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY]]),
         ]);
     }
 

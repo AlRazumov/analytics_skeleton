@@ -1,6 +1,8 @@
 <x-layouts.standalone title="Остатки">
     <h1>Остатки</h1>
 
+    <x-widgets.month-switcher :nav="$monthNav" />
+
     <x-widgets.category-filter :options="$categoryOptions" :selected="$category" :keep="['period' => request()->query('period')]" />
 
     @if ($deadStockChart !== null)

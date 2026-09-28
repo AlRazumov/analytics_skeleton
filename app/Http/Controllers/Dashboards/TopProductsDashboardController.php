@@ -6,6 +6,7 @@ use App\Core\Domain\Enums\ComparisonBase;
 use App\Core\Domain\Enums\Direction;
 use App\Core\Domain\Period;
 use App\Core\Widgets\Contracts\ProductCategoryResolver;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Core\Widgets\ProductChartsProvider;
 use App\Core\Widgets\ProductTablesProvider;
 use App\Http\Controllers\Controller;
@@ -28,7 +29,7 @@ class TopProductsDashboardController extends Controller
     use ResolvesMonthPeriod;
     use RespondsWithCsv;
 
-    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts, ProductCategoryResolver $categories): View
+    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts, ProductCategoryResolver $categories, MonthNavigationProvider $months): View
     {
         $period = $this->requestedMonth($request);
         $base = $this->requestedBase($request);
@@ -52,6 +53,7 @@ class TopProductsDashboardController extends Controller
             'yearAgoAvailable' => $yearAgoAvailable,
             'baseMissing' => $resolved !== null && $base === ComparisonBase::YearAgo && ! $yearAgoAvailable,
             'periodKey' => $top->period,
+            'monthNav' => $months->for($top->period, [['product', 'revenue']]),
             'category' => $category,
             'categoryOptions' => $options,
         ]);

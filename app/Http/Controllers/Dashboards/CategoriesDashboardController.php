@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Dashboards;
 
+use App\Core\Analytics\CategoryRevenueCalculator;
 use App\Core\Domain\Enums\ComparisonBase;
 use App\Core\Domain\Period;
 use App\Core\Widgets\CategoryProvider;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Http\Controllers\Controller;
 use App\Support\TableCsv;
 use Illuminate\Http\Request;
@@ -22,7 +24,7 @@ class CategoriesDashboardController extends Controller
     use ResolvesMonthPeriod;
     use RespondsWithCsv;
 
-    public function __invoke(Request $request, CategoryProvider $categories): View
+    public function __invoke(Request $request, CategoryProvider $categories, MonthNavigationProvider $months): View
     {
         $base = $this->requestedBase($request);
         $table = $categories->table($this->requestedMonth($request), $base);
@@ -37,6 +39,7 @@ class CategoriesDashboardController extends Controller
             'yearAgoAvailable' => $yearAgoAvailable,
             'baseMissing' => $resolved !== null && $base === ComparisonBase::YearAgo && ! $yearAgoAvailable,
             'periodKey' => $table->period,
+            'monthNav' => $months->for($table->period, [[CategoryRevenueCalculator::ENTITY_TYPE, CategoryRevenueCalculator::METRIC_KEY]]),
         ]);
     }
 

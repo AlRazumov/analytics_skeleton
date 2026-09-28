@@ -109,6 +109,26 @@ final class EloquentMetricsComparisonRepository implements MetricsComparisonRepo
             : Period::containing($granularity, new DateTimeImmutable(substr((string) $start, 0, 10)));
     }
 
+    public function adjacentPeriods(array $metrics, Period $period): array
+    {
+        $scoped = fn () => DB::table('metrics_snapshots')
+            ->where('period_type', $period->granularity->value)
+            ->where(function (Builder $query) use ($metrics): void {
+                foreach ($metrics as [$entityType, $metricKey]) {
+                    $query->orWhere(fn (Builder $pair) => $pair->where('entity_type', $entityType)->where('metric_key', $metricKey));
+                }
+            });
+        $start = $period->start->format('Y-m-d');
+        $toPeriod = fn (mixed $value): ?Period => $value === null
+            ? null
+            : Period::containing($period->granularity, new DateTimeImmutable(substr((string) $value, 0, 10)));
+
+        return [
+            $toPeriod($scoped()->where('period_start', '<', $start)->max('period_start')),
+            $toPeriod($scoped()->where('period_start', '>', $start)->min('period_start')),
+        ];
+    }
+
     public function bucketCounts(string $metricKey, string $entityType, Period $period, array $ranges, ?string $productCategory = null): array
     {
         if ($ranges === []) {

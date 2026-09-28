@@ -10,6 +10,8 @@
 <x-layouts.standalone title="Топ товаров">
     <h1>Топ товаров по выручке</h1>
 
+    <x-widgets.month-switcher :nav="$monthNav" />
+
     <x-widgets.category-filter :options="$categoryOptions" :selected="$category" :keep="[
         'period' => request()->query('period'),
         'base' => $base === ComparisonBase::Previous ? null : $base->value,
