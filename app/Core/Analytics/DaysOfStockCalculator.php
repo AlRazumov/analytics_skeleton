@@ -5,8 +5,10 @@ namespace App\Core\Analytics;
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Domain\Enums\StockMovementType;
+use App\Core\Domain\Period;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use DateTimeImmutable;
+use DateTimeInterface;
 use Generator;
 
 /**
@@ -27,9 +29,9 @@ use Generator;
  * продажи такого дня (например, дня прихода: партия пришла утром,
  * остаток на начало дня 0) не входят в числитель, иначе скорость
  * завышалась бы.
- * Остаток по дням окна: fetchStock(начало окна − 1 день) + движения
- * окна (все типы, только эта пара). Продажи вне окна и другие типы
- * спросом не считаются.
+ * Остаток по дням окна: остаток накануне окна + движения окна (все
+ * типы, только эта пара). Продажи вне окна и другие типы спросом не
+ * считаются.
  *
  * Снэпшот НЕ пишется (а не 0 и не бесконечность), если спроса в дни в наличии нет или
  * дней с остатком в окне меньше min_in_stock_days; счётчики пропусков
@@ -44,8 +46,12 @@ use Generator;
  * ОГРАНИЧЕНИЕ: сезонность не учитывается — окно короткое, скорость
  * считается плоской.
  *
- * Читает окно отдельным вызовом fetchStock/fetchStockMovements на
- * каждый месяц (потоково; в памяти — движения одного окна).
+ * Два обращения к источнику на весь диапазон, сколько бы в нём ни было
+ * месяцев: fetchStock накануне первого окна и fetchStockMovements от
+ * начала первого окна до конца диапазона; остаток накануне каждого
+ * следующего окна — прокруткой движений (опирается на правило контракта
+ * stock.movements_balance). В памяти — движения диапазона, свёрнутые до
+ * сумм по (пара, день), а не сами движения.
  * Требует capabilities StockMovements и StockSnapshots.
  */
 final class DaysOfStockCalculator
@@ -101,73 +107,84 @@ final class DaysOfStockCalculator
         $rangeEnd = new DateTimeImmutable($period->end->format('Y-m-d'));
         $this->lastSkipped = ['no_demand' => 0, 'too_few_in_stock_days' => 0];
 
+        /** @var list<array{Period, DateTimeImmutable}> $windows [месяц, начало окна] */
+        $windows = [];
         foreach (Months::in($rangeStart, $rangeEnd) as $month) {
-            $records = [];
             $asOf = min($month->end, $rangeEnd);
-            $windowStart = $asOf->modify('-'.($this->windowDays - 1).' days');
-            $window = new DateRange($windowStart, $asOf);
+            $windows[] = [$month, $asOf->modify('-'.($this->windowDays - 1).' days')];
+        }
+        if ($windows === []) {
+            return;
+        }
 
-            $opening = [];
-            foreach ($adapter->fetchStock($windowStart->modify('-1 day')) as $balance) {
-                $opening[ProductWarehouseKey::make($balance->productId, $balance->warehouseId)] = $balance->quantity;
+        // Дни считаются от начала первого окна. Окна идут по возрастанию
+        // начала, но могут перекрываться (последний месяц, обрезанный концом
+        // диапазона) и оставлять между собой дни вне окон — движения этих дней
+        // тоже входят в прокрутку остатка.
+        $firstDay = $windows[0][1];
+        $lastDayIndex = self::dayIndex($firstDay, $rangeEnd);
+
+        // Остаток на начало дня $cursor (изначально — на конец дня накануне
+        // первого окна).
+        $stock = [];
+        foreach ($adapter->fetchStock($firstDay->modify('-1 day')) as $balance) {
+            $stock[ProductWarehouseKey::make($balance->productId, $balance->warehouseId)] = $balance->quantity;
+        }
+        $cursor = 0;
+
+        $saleByDay = [];
+        $deltaByDay = [];
+        foreach ($adapter->fetchStockMovements(new DateRange($firstDay, $rangeEnd)) as $movement) {
+            $key = ProductWarehouseKey::make($movement->productId, $movement->warehouseId);
+            $dayIndex = self::dayIndex($firstDay, $movement->date);
+            if ($dayIndex < 0 || $dayIndex > $lastDayIndex) {
+                continue;
             }
 
-            $saleByDay = [];
-            $deltaByDay = [];
-            foreach ($adapter->fetchStockMovements($window) as $movement) {
-                $key = ProductWarehouseKey::make($movement->productId, $movement->warehouseId);
-                $dayIndex = (int) $windowStart->diff(new DateTimeImmutable($movement->date->format('Y-m-d')))->format('%r%a');
-                if ($dayIndex < 0 || $dayIndex >= $this->windowDays) {
-                    continue;
-                }
-
-                $deltaByDay[$key][$dayIndex] = ($deltaByDay[$key][$dayIndex] ?? 0.0) + $movement->quantity;
-                if ($movement->type === StockMovementType::Sale) {
-                    $saleByDay[$key][$dayIndex] = ($saleByDay[$key][$dayIndex] ?? 0.0) - $movement->quantity;
-                }
+            $deltaByDay[$key][$dayIndex] = ($deltaByDay[$key][$dayIndex] ?? 0.0) + $movement->quantity;
+            if ($movement->type === StockMovementType::Sale) {
+                $saleByDay[$key][$dayIndex] = ($saleByDay[$key][$dayIndex] ?? 0.0) - $movement->quantity;
             }
+        }
 
-            // Пары без продаж — и с остатком на начало окна, и получившие
-            // товар внутри окна (приход/перемещение на склад с нуля).
-            foreach (array_keys($opening + $deltaByDay) as $key) {
-                if (isset($saleByDay[$key])) {
-                    continue;
+        $keys = array_keys($stock + $deltaByDay);
+        sort($keys, SORT_STRING);
+
+        foreach ($windows as [$month, $windowStart]) {
+            $records = [];
+            $from = self::dayIndex($firstDay, $windowStart);
+
+            foreach ($keys as $key) {
+                $deltas = $deltaByDay[$key] ?? [];
+                $opening = $stock[$key] ?? 0.0;
+                for ($day = $cursor; $day < $from; $day++) {
+                    $opening += $deltas[$day] ?? 0.0;
                 }
+                $stock[$key] = $opening;
 
-                $quantity = $opening[$key] ?? 0.0;
-                $finalStock = $quantity;
-                for ($day = 0; $day < $this->windowDays; $day++) {
-                    $finalStock += $deltaByDay[$key][$day] ?? 0.0;
+                $sales = $saleByDay[$key] ?? [];
+                $hasSale = false;
+                for ($day = $from; $day < $from + $this->windowDays && ! $hasSale; $day++) {
+                    $hasSale = isset($sales[$day]);
                 }
-                $finalStock = max(0.0, $finalStock);
-
-                if ($quantity > self::EPSILON || $finalStock > self::EPSILON) {
-                    $this->lastSkipped['no_demand']++;
-
-                    if ($finalStock > self::EPSILON) {
-                        $records[] = new MetricsSnapshotRecord(
-                            entityType: self::ENTITY_TYPE,
-                            entityId: $key,
-                            metricKey: self::NO_DEMAND_STOCK_METRIC_KEY,
-                            value: $finalStock,
-                            period: 'month:'.$month->start->format('Y-m'),
-                            valueMeta: ['stock_qty' => $finalStock],
-                        );
+                if (! $hasSale) {
+                    $record = $this->noDemand($key, $month, $opening, $deltas, $from);
+                    if ($record !== null) {
+                        $records[] = $record;
                     }
-                }
-            }
 
-            ksort($saleByDay);
-            foreach ($saleByDay as $key => $salesByDay) {
-                $stock = $opening[$key] ?? 0.0;
+                    continue;
+                }
+
+                $stockOnDay = $opening;
                 $inStockDays = 0;
                 $soldInStockDays = 0.0;
-                for ($day = 0; $day < $this->windowDays; $day++) {
-                    if ($stock > self::EPSILON) {
+                for ($day = $from; $day < $from + $this->windowDays; $day++) {
+                    if ($stockOnDay > self::EPSILON) {
                         $inStockDays++;
-                        $soldInStockDays += $salesByDay[$day] ?? 0.0;
+                        $soldInStockDays += $sales[$day] ?? 0.0;
                     }
-                    $stock += $deltaByDay[$key][$day] ?? 0.0;
+                    $stockOnDay += $deltas[$day] ?? 0.0;
                 }
 
                 if ($inStockDays < $this->minInStockDays) {
@@ -183,7 +200,7 @@ final class DaysOfStockCalculator
                 }
 
                 $dailyRate = $soldInStockDays / $inStockDays;
-                $stockAtEnd = max(0.0, $stock);
+                $stockAtEnd = max(0.0, $stockOnDay);
 
                 $records[] = new MetricsSnapshotRecord(
                     entityType: self::ENTITY_TYPE,
@@ -200,7 +217,49 @@ final class DaysOfStockCalculator
                 );
             }
 
+            $cursor = $from;
+
             yield $records;
         }
+    }
+
+    /**
+     * Пара без продаж в окне — и с остатком на начало окна, и получившая
+     * товар внутри окна (приход/перемещение на склад с нуля): пропуск
+     * no_demand и stock_no_demand при положительном остатке на конец окна.
+     *
+     * @param  array<int, float>  $deltas  движения пары по дням от начала первого окна
+     */
+    private function noDemand(string $key, Period $month, float $opening, array $deltas, int $from): ?MetricsSnapshotRecord
+    {
+        $finalStock = $opening;
+        for ($day = $from; $day < $from + $this->windowDays; $day++) {
+            $finalStock += $deltas[$day] ?? 0.0;
+        }
+        $finalStock = max(0.0, $finalStock);
+
+        if ($opening <= self::EPSILON && $finalStock <= self::EPSILON) {
+            return null;
+        }
+
+        $this->lastSkipped['no_demand']++;
+        if ($finalStock <= self::EPSILON) {
+            return null;
+        }
+
+        return new MetricsSnapshotRecord(
+            entityType: self::ENTITY_TYPE,
+            entityId: $key,
+            metricKey: self::NO_DEMAND_STOCK_METRIC_KEY,
+            value: $finalStock,
+            period: 'month:'.$month->start->format('Y-m'),
+            valueMeta: ['stock_qty' => $finalStock],
+        );
+    }
+
+    /** Номер дня $date (время игнорируется) от $firstDay; до него — отрицательный. */
+    private static function dayIndex(DateTimeImmutable $firstDay, DateTimeInterface $date): int
+    {
+        return (int) $firstDay->diff(new DateTimeImmutable($date->format('Y-m-d')))->format('%r%a');
     }
 }

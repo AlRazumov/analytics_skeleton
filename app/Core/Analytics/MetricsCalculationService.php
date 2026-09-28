@@ -32,9 +32,9 @@ use RuntimeException;
  * (DeadStockCalculator, DaysOfStockCalculator) принимают сам адаптер и
  * читают его сами: неликвидам нужны остатки и окно движений с lookback
  * (по одному fetchStock() и fetchStockMovements()), дням до обнуления —
- * по одному fetchStock() + fetchStockMovements() на каждый месяц
- * диапазона. Итого за calculate() при обоих capabilities:
- * fetchStock() и fetchStockMovements() — по (2 + число месяцев) раз.
+ * тоже по одному на весь диапазон (этап 23). Итого за calculate() при
+ * обоих capabilities: fetchStock() и fetchStockMovements() — по три раза,
+ * независимо от числа месяцев.
  * Выручке по категориям нужен справочник товаров — один fetchProducts().
  * Все три метрики остатков считаются, только если у адаптера есть
  * StockMovements и StockSnapshots (иначе причина — warning в лог, без
