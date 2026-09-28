@@ -37,6 +37,7 @@
 | 26 | Переключатель месяцев «← предыдущий / следующий →» на страницах с месяцем | stages/stage-26-month-switcher.md | done (см. reports/stage-26-month-switcher.md) | 22 |
 | 27 | Индикатор свежести данных: журнал запусков `metrics_runs`, плашка «Данные рассчитаны … за …» с предупреждениями | stages/stage-27-data-freshness.md | done (см. reports/stage-27-data-freshness.md) | 26 |
 | 28 | Карточка товара: все метрики одного товара на одной странице, ссылки из таблиц | stages/stage-28-product-card.md | done (см. reports/stage-28-product-card.md) | 26, 27 |
+| 29 | Пороги аналитики (`stock`, `lost_sales`, `transfers`, `display`) в `.env` со строгим разбором | stages/stage-29-config-env.md | done (см. reports/stage-29-config-env.md) | 27 |
 
 ## TODO before real adapters
 
