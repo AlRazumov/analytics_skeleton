@@ -6,7 +6,8 @@ namespace App\Adapters\Mock;
  * Сколько товаров MockAdapter отводит под каждый эталонный сценарий
  * (см. MockScenarioManifest). Сценарные товары занимают первые id
  * (prod-1, prod-2, ...) в порядке: dead, near_zero, gaps, spike,
- * seasonal, imbalance, lost_sales, no_sales_donor; остальные — обычные.
+ * seasonal, imbalance, lost_sales, no_sales_donor, returns; остальные —
+ * обычные.
  */
 final readonly class MockScenarioConfig
 {
@@ -41,5 +42,12 @@ final readonly class MockScenarioConfig
          * У каждого — парный склад с дефицитом того же товара.
          */
         public int $noSalesDonorCount = 0,
+        /**
+         * Товаров с возвратами (отрицательные сделки): в последнем месяце окна
+         * истории все продажи месяца возвращены (нетто 0, продажи есть), у
+         * каждого второго — ещё и продажа предыдущего месяца (нетто < 0). См.
+         * MockAdapter::returnsDeals. Движения не меняет — только fetchDeals().
+         */
+        public int $returnsCount = 0,
     ) {}
 }

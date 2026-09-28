@@ -10,13 +10,20 @@ use InvalidArgumentException;
 /**
  * ЭВРИСТИКА ДЛЯ ДЕМО (не финальное продуктовое решение, см. docs/roadmap.md,
  * Known issues «потерянные продажи»): товар считается «потерявшим продажи»
- * в месяце M, если в M нет ни одной сделки, а в одном из $horizonMonths
- * месяцев до M сделки были. Итоговое решение о том, нужна ли такая
+ * в месяце M, если в M нет ни одной продажи, а в одном из $horizonMonths
+ * месяцев до M продажи были. Итоговое решение о том, нужна ли такая
  * выборка и в каком виде, — за реальным клиентом.
  *
+ * Продажа — сделка с положительной суммой; возвраты (отрицательные
+ * сделки, так их допускает контракт) продажами не считаются и продажи не
+ * гасят: месяц, где продажи погашены возвратами до нетто ≤ 0, не
+ * «потерянный», а месяц только с возвратами — «потерянный».
+ *
  * entity_type='product', metric_key='lost_sales'. Один снэпшот на пару
- * (товар, месяц), value — выручка ближайшего предыдущего месяца из
- * горизонта, где сделки были (оценка «сколько теряем в месяц»).
+ * (товар, месяц), value — сумма продаж (без возвратов) ближайшего
+ * предыдущего месяца из горизонта, где продажи были (оценка «сколько
+ * теряем в месяц»: спрос, а не нетто, которое уменьшают возвраты
+ * прошлых продаж).
  * value_meta: horizon_months, last_sale_period (ключ периода последнего
  * месяца с продажами).
  *
@@ -48,8 +55,13 @@ final class LostSalesCalculator
      */
     public function calculate(iterable $deals, DateRange $period): array
     {
+        // Сумма только продаж по (товар, месяц); месяц есть в массиве, только
+        // если в нём была хотя бы одна продажа.
         $byProductAndMonth = [];
         foreach ($deals as $deal) {
+            if ($deal->amount <= 0.0) {
+                continue;
+            }
             $month = $deal->date->format('Y-m');
             $byProductAndMonth[$deal->productId][$month] = ($byProductAndMonth[$deal->productId][$month] ?? 0.0) + $deal->amount;
         }
@@ -60,7 +72,7 @@ final class LostSalesCalculator
             $currentKey = $month->start->format('Y-m');
 
             foreach ($byProductAndMonth as $productId => $byMonth) {
-                if (($byMonth[$currentKey] ?? 0.0) > 0.0) {
+                if (isset($byMonth[$currentKey])) {
                     continue;
                 }
 
@@ -68,7 +80,7 @@ final class LostSalesCalculator
                 $lastSaleAmount = 0.0;
                 for ($back = 1; $back <= $this->horizonMonths; $back++) {
                     $prevKey = $month->start->modify("-{$back} months")->format('Y-m');
-                    if (($byMonth[$prevKey] ?? 0.0) > 0.0) {
+                    if (isset($byMonth[$prevKey])) {
                         $lastSaleMonth = $prevKey;
                         $lastSaleAmount = $byMonth[$prevKey];
                         break;

@@ -20,6 +20,7 @@ final readonly class MockScenarioManifest
      * @param  bool  $hasTransfers  есть парные transfer_out/transfer_in (склада больше одного)
      * @param  list<string>  $lostSalesProductIds  ЭВРИСТИКА ДЛЯ ДЕМО (LostSalesCalculator): сделки есть в каждом месяце окна истории, кроме последнего — там ни одной
      * @param  array<string, array{donor_warehouse_id: string, deficit_warehouse_id: string, donor_stock_at_end: int, deficit_stock_at_end: int, deficit_daily_rate: int, deficit_days_of_stock: int}>  $noSalesDonorProducts  ЭВРИСТИКА ДЛЯ ДЕМО (донор без спроса, TransferRecommendationService): на donor_warehouse_id остаток есть, продаж за всю историю нет (days_of_stock не пишется); на deficit_warehouse_id — обычный дефицит того же товара
+     * @param  array<string, array{month: string, month_net: float}>  $returnProducts  возвраты: в месяце month ('Y-m', последний месяц окна истории) продажи есть, но все возвращены; нетто месяца month_net — 0 или минус возврат продажи предыдущего месяца (с точностью до округления float)
      */
     public function __construct(
         public string $historyStart,
@@ -36,5 +37,6 @@ final readonly class MockScenarioManifest
         public bool $hasTransfers,
         public array $lostSalesProductIds = [],
         public array $noSalesDonorProducts = [],
+        public array $returnProducts = [],
     ) {}
 }

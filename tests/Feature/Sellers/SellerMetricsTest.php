@@ -39,13 +39,28 @@ it('keeps sum over sellers + no-seller equal to the total, for count and amount'
         $amount = array_sum(array_map(fn ($r) => $r->value, array_filter($records, fn ($r) => $r->metricKey === 'sales_amount' && $r->period === "month:$month")));
         $share = array_sum(array_map(fn ($r) => $r->value, array_filter($records, fn ($r) => $r->metricKey === 'share_of_total' && $r->period === "month:$month")));
 
-        expect($count)->toBe((float) count($inMonth))
+        // Число — только продажи (возвраты сценария returns — не сделки), сумма — нетто.
+        expect($count)->toBe((float) count(array_filter($inMonth, fn (Deal $d) => $d->amount > 0)))
             ->and($amount)->toEqualWithDelta(array_sum(array_map(fn (Deal $d) => $d->amount, $inMonth)), 0.01)
             ->and($share)->toEqualWithDelta(100.0, 0.001);
     }
 
     $noSeller = array_filter($records, fn ($r) => $r->entityId === SellerSalesData::NO_SELLER && $r->metricKey === 'sales_count');
     expect($noSeller)->not->toBeEmpty();
+});
+
+it('counts only sales, nets returns into the amount and does not extend activity by a return', function () {
+    $values = sellerValues([
+        sellerDeal('1', 'a', 100, '2026-08-03'),
+        sellerDeal('2', 'a', 50, '2026-08-05'),
+        sellerDeal('r1', 'a', -50, '2026-08-20'),
+    ], 'month:2026-08');
+
+    // 2 продажи, нетто 100 → средний чек 50; активное окно 3–5 августа (3 дня), а не до 20-го.
+    expect($values['sales_count']['a'])->toBe(2.0)
+        ->and($values['sales_amount']['a'])->toBe(100.0)
+        ->and($values['avg_check']['a'])->toBe(50.0)
+        ->and($values['sales_per_active_day']['a'])->toBe(2 / 3);
 });
 
 it('puts a seller-less deal under the reserved key and never loses it', function () {

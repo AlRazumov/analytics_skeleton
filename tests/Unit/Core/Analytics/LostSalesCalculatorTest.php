@@ -71,3 +71,42 @@ it('does not flag a product with no sales at all in the horizon (never sold, not
 it('validates horizonMonths', function () {
     expect(fn () => new LostSalesCalculator(0))->toThrow(InvalidArgumentException::class);
 });
+
+it('does not flag a month whose sales were cancelled by returns (net <= 0)', function () {
+    $deals = [
+        new Deal('d-1', 'a', 100.0, new DateTimeImmutable('2026-07-05')),
+        new Deal('d-2', 'a', 40.0, new DateTimeImmutable('2026-08-03')),
+        new Deal('r-2', 'a', -40.0, new DateTimeImmutable('2026-08-10')),
+        // Возврат июльской продажи в августе: нетто августа отрицательное.
+        new Deal('r-1', 'a', -100.0, new DateTimeImmutable('2026-08-12')),
+    ];
+    $period = new DateRange(new DateTimeImmutable('2026-07-01'), new DateTimeImmutable('2026-08-31'));
+
+    expect((new LostSalesCalculator(horizonMonths: 1))->calculate($deals, $period))->toBe([]);
+});
+
+it('flags a month with only returns, valued by the previous month sales without returns', function () {
+    $deals = [
+        new Deal('d-1', 'a', 100.0, new DateTimeImmutable('2026-07-05')),
+        new Deal('r-0', 'a', -30.0, new DateTimeImmutable('2026-07-20')),
+        new Deal('r-1', 'a', -100.0, new DateTimeImmutable('2026-08-12')),
+    ];
+    $period = new DateRange(new DateTimeImmutable('2026-07-01'), new DateTimeImmutable('2026-08-31'));
+
+    $records = (new LostSalesCalculator(horizonMonths: 1))->calculate($deals, $period);
+
+    // В августе только возврат — продаж нет; оценка — продажи июля (100), а не нетто (70).
+    expect($records)->toHaveCount(1)
+        ->and($records[0]->period)->toBe('month:2026-08')
+        ->and($records[0]->value)->toBe(100.0)
+        ->and($records[0]->valueMeta['last_sale_period'])->toBe('month:2026-07');
+});
+
+it('does not treat a month with only returns as a month with sales in the horizon', function () {
+    $deals = [
+        new Deal('r-1', 'a', -50.0, new DateTimeImmutable('2026-07-12')),
+    ];
+    $period = new DateRange(new DateTimeImmutable('2026-07-01'), new DateTimeImmutable('2026-08-31'));
+
+    expect((new LostSalesCalculator(horizonMonths: 1))->calculate($deals, $period))->toBe([]);
+});
