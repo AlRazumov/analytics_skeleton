@@ -12,6 +12,7 @@ use App\Core\Domain\Period;
 use App\Core\Staging\StagingProduct;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use App\Core\Widgets\DTO\ValueRange;
+use App\Models\MetricsSnapshot;
 use App\Models\User;
 use App\Repositories\DbProductCategoryResolver;
 use App\Repositories\EloquentMetricsComparisonRepository;
@@ -113,6 +114,38 @@ it('splits the top products page by category on the mock, category by category',
         $sum += $top->total;
     }
     expect($sum)->toBe($all->total);
+});
+
+it('splits the ABC/XYZ matrix by category, keeping the classes computed over the whole range', function () {
+    runCategoryFilterPipeline();
+    $cells = fn ($matrix) => collect($matrix->cells)->mapWithKeys(fn ($c) => [$c->rowKey.$c->colKey => [$c->itemsCount, round($c->value, 2)]])->all();
+    $all = $this->get('/dashboards/abc-xyz')->assertOk()->viewData('matrix');
+    $classOf = MetricsSnapshot::query()->where('metric_key', 'abc_xyz_classification')->get()
+        ->mapWithKeys(fn ($r) => [$r->entity_id => $r->value_meta['abc_class'].$r->value_meta['xyz_class']])->all();
+    $categoryOf = categoryOfProducts();
+
+    $sum = [];
+    foreach (array_unique($categoryOf) as $category) {
+        $response = $this->get('/dashboards/abc-xyz?'.http_build_query(['category' => $category]))->assertOk()
+            ->assertSee('посчитаны по всему ассортименту');
+        $matrix = $response->viewData('matrix');
+
+        // Число товаров в ячейке — ровно товары категории с этим (общим) классом.
+        $expected = array_count_values(array_map(fn ($id) => $classOf[$id], array_keys(array_filter($categoryOf, fn ($c) => $c === $category))));
+        expect(array_map(fn ($c) => $c[0], $cells($matrix)))->toEqual($expected);
+        foreach ($cells($matrix) as $key => [$items, $value]) {
+            $sum[$key] = [($sum[$key][0] ?? 0) + $items, round(($sum[$key][1] ?? 0) + $value, 2)];
+        }
+    }
+    expect($sum)->toEqual($cells($all));
+
+    $this->get('/dashboards/abc-xyz?category=__none__')->assertOk()->assertSee('В этой категории нет товаров');
+    $this->get('/dashboards/abc-xyz?category=Нет%20такой')->assertNotFound();
+    $this->get('/dashboards/abc-xyz')->assertOk()->assertSee('Все категории')->assertDontSee('посчитаны по всему ассортименту');
+
+    config(['analytics.features.categories' => false]);
+    $this->get('/dashboards/abc-xyz')->assertOk()->assertDontSee('Все категории');
+    $this->get('/dashboards/abc-xyz?category=Одежда')->assertNotFound();
 });
 
 it('filters the stock and turnover pages, tables and charts alike', function () {

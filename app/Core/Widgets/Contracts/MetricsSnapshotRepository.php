@@ -41,11 +41,13 @@ interface MetricsSnapshotRepository
     /**
      * Ячейки «число сущностей и сумма value» за период, сгруппированные по
      * двум ключам value_meta (для отсутствующего ключа — '?'). Группировка —
-     * в хранилище.
+     * в хранилище. $productCategory — только товары этой категории
+     * справочника (как в MetricsComparisonRepository; NO_CATEGORY — без
+     * категории), только для entity_type product/product_warehouse.
      *
      * @return list<MatrixCellData>
      */
-    public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey): array;
+    public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey, ?string $productCategory = null): array;
 
     /**
      * Ключ `period` самого свежего снэпшота для (entityType, metricKey) —

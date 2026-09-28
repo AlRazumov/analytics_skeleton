@@ -92,11 +92,13 @@ final class EloquentMetricsSnapshotRepository implements MetricsSnapshotReposito
         return ['rows' => $rows, 'total' => $total];
     }
 
-    public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey): array
+    public function cellsByMeta(string $entityType, string $metricKey, string $periodKey, string $rowMetaKey, string $colMetaKey, ?string $productCategory = null): array
     {
+        $query = $this->scoped($entityType, $metricKey, [$periodKey])->toBase();
+        ProductCategoryFilter::apply($query, 'metrics_snapshots.entity_id', $entityType, $productCategory);
+
         $cells = [];
-        foreach ($this->scoped($entityType, $metricKey, [$periodKey])
-            ->toBase()
+        foreach ($query
             ->selectRaw('COALESCE(value_meta->>?, ?) AS row_key, COALESCE(value_meta->>?, ?) AS col_key, COUNT(*) AS items, SUM(value) AS total', [$rowMetaKey, '?', $colMetaKey, '?'])
             ->groupBy('row_key', 'col_key')
             ->orderBy('row_key')
