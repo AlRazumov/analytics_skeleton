@@ -3,6 +3,7 @@
 use App\Http\Controllers\Dashboards\AbcXyzDashboardController;
 use App\Http\Controllers\Dashboards\CategoriesDashboardController;
 use App\Http\Controllers\Dashboards\OverviewDashboardController;
+use App\Http\Controllers\Dashboards\ProductCardController;
 use App\Http\Controllers\Dashboards\SellersDashboardController;
 use App\Http\Controllers\Dashboards\StockDashboardController;
 use App\Http\Controllers\Dashboards\TopProductsDashboardController;
@@ -49,4 +50,6 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         ->middleware('feature:sellers')->name('dashboards.sellers');
     Route::get('/dashboards/sellers/export', [SellersDashboardController::class, 'export'])
         ->middleware('feature:sellers')->name('dashboards.sellers.export');
+    Route::get('/dashboards/products/{product}', ProductCardController::class)
+        ->middleware('feature:product_card')->name('dashboards.product');
 });

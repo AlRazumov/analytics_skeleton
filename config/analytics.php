@@ -106,6 +106,7 @@ return [
         'transfers' => (bool) env('ANALYTICS_FEATURE_TRANSFERS', true),
         'sellers' => (bool) env('ANALYTICS_FEATURE_SELLERS', true),
         'categories' => (bool) env('ANALYTICS_FEATURE_CATEGORIES', true),
+        'product_card' => (bool) env('ANALYTICS_FEATURE_PRODUCT_CARD', true),
     ],
 
     // Пороги и размеры таблиц на страницах (не путать с порогами расчёта).
@@ -126,6 +127,9 @@ return [
         'dead_stock_age_bounds' => [180, 365],
         'days_of_stock_bounds' => [8, 15, 31, 61],
         'turnover_bounds' => [1.0, 2.0],
+
+        // Карточка товара: длина помесячной динамики (включая выбранный месяц).
+        'product_history_months' => 12,
 
         // Индикатор свежести данных: часовой пояс времени расчёта на страницах
         // (приложение и планировщик — в UTC) и через сколько часов после

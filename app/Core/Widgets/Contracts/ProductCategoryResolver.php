@@ -16,4 +16,10 @@ interface ProductCategoryResolver
      * @return list<string>
      */
     public function categories(): array;
+
+    /**
+     * Категория товара по справочнику; null — категории нет (null или
+     * пустая строка) или товара нет в справочнике.
+     */
+    public function categoryOf(string $productId): ?string;
 }
