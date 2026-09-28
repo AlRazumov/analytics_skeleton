@@ -12,12 +12,14 @@ use App\Core\Analytics\MetricsCalculationService;
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
+use App\Models\MetricsRun;
 use App\Models\MetricsSnapshot;
 use App\Sync\ReferenceSyncService;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * Прогоняет расчётный пайплайн (core/Analytics) по адаптеру источника
@@ -79,24 +81,41 @@ class CalculateMetrics extends Command
             $dateRange->end->format('Y-m-d'),
         ));
 
-        // Справочники — из того же адаптера, чтобы страницы показывали названия без обращений к источнику.
-        $counts = $referenceSync->sync($adapter);
-        $this->info("Справочники: товаров — {$counts['products']}, складов — {$counts['warehouses']}, продавцов — {$counts['sellers']}.");
+        // Журнал запусков (индикатор свежести на страницах) пишется вне
+        // транзакции расчёта: упавший запуск остаётся в журнале со статусом failed.
+        $run = MetricsRun::query()->create([
+            'source' => $factory->source().($profileOption !== '' ? "/{$profileOption}" : ''),
+            'status' => MetricsRun::RUNNING,
+            'period_start' => $dateRange->start->format('Y-m-d'),
+            'period_end' => $dateRange->end->format('Y-m-d'),
+            'started_at' => now(),
+        ]);
 
-        // Удаление и запись — одной транзакцией: сбой расчёта или записи не
-        // оставляет месяцы пустыми или обрезанными. Записи пишутся порциями по
-        // мере расчёта, чтобы не держать весь прогон в памяти.
-        $written = DB::transaction(function () use ($service, $adapter, $dateRange, $writer): int {
-            $this->deleteExistingSnapshots($dateRange);
-            $written = 0;
-            foreach ($service->calculateInChunks($adapter, $dateRange) as $chunk) {
-                $writer->write($chunk);
-                $written += count($chunk);
-            }
+        try {
+            // Справочники — из того же адаптера, чтобы страницы показывали названия без обращений к источнику.
+            $counts = $referenceSync->sync($adapter);
+            $this->info("Справочники: товаров — {$counts['products']}, складов — {$counts['warehouses']}, продавцов — {$counts['sellers']}.");
 
-            return $written;
-        });
+            // Удаление и запись — одной транзакцией: сбой расчёта или записи не
+            // оставляет месяцы пустыми или обрезанными. Записи пишутся порциями по
+            // мере расчёта, чтобы не держать весь прогон в памяти.
+            $written = DB::transaction(function () use ($service, $adapter, $dateRange, $writer): int {
+                $this->deleteExistingSnapshots($dateRange);
+                $written = 0;
+                foreach ($service->calculateInChunks($adapter, $dateRange) as $chunk) {
+                    $writer->write($chunk);
+                    $written += count($chunk);
+                }
 
+                return $written;
+            });
+        } catch (Throwable $e) {
+            $run->update(['status' => MetricsRun::FAILED, 'error' => mb_substr($e->getMessage(), 0, 2000), 'finished_at' => now()]);
+
+            throw $e;
+        }
+
+        $run->update(['status' => MetricsRun::SUCCESS, 'snapshots_written' => $written, 'finished_at' => now()]);
         $this->info(sprintf('Готово: записано снэпшотов — %d.', $written));
 
         return self::SUCCESS;
