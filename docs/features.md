@@ -14,6 +14,7 @@
 | `transfers` | `ANALYTICS_FEATURE_TRANSFERS` | страницу `/dashboards/transfers` с CSV-выгрузкой и пункт «Перемещения» |
 | `sellers` | `ANALYTICS_FEATURE_SELLERS` | блок «Топ-3 продавцов» на обзоре, страницу `/dashboards/sellers` с CSV-выгрузкой и пункт «Продавцы» |
 | `categories` | `ANALYTICS_FEATURE_CATEGORIES` | страницу `/dashboards/categories` с CSV-выгрузкой, пункт «Категории» и фильтр `?category=` на «Топ товаров», «Остатках», «Оборачиваемости», «ABC/XYZ» (параметр — 404) |
+| `product_card` | `ANALYTICS_FEATURE_PRODUCT_CARD` | карточку товара `/dashboards/products/{id}` и ссылки на неё из названий товаров в таблицах; блоки карточки скрываются и флагами своих страниц (`turnover` — штуки и оборачиваемость, `dead_stock` — дни без продаж, `stockout_risk` — склады) |
 
 Страница `/dashboards/stock` и пункт «Остатки» скрыты (404), только если
 выключены **оба** флага — `dead_stock` и `stockout_risk`.
@@ -31,6 +32,7 @@
 | `dead_stock_age_bounds` | `[180, 365]` | границы корзин графика «Неликвиды по возрасту» (первая корзина — от `dead_stock_display_days`) |
 | `days_of_stock_bounds` | `[8, 15, 31, 61]` | границы корзин графика «Дни до обнуления» (первая — от 0) |
 | `turnover_bounds` | `[1.0, 2.0]` | границы корзин распределения оборачиваемости (корзины: 0; (0; 1); [1; 2); 2+) |
+| `product_history_months` | 12 | карточка товара: сколько месяцев динамики показывать (включая выбранный) |
 
 ## Пороги рекомендаций перемещений (`analytics.transfers`)
 

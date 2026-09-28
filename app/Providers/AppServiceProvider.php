@@ -15,6 +15,7 @@ use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotRepository;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Core\Widgets\Contracts\ProductCategoryResolver;
+use App\Core\Widgets\Contracts\ProductMetricsRepository;
 use App\Core\Widgets\Contracts\ProductNameResolver;
 use App\Core\Widgets\Contracts\WarehouseNameResolver;
 use App\Core\Widgets\TopNProvider;
@@ -25,6 +26,7 @@ use App\Repositories\DbWarehouseNameResolver;
 use App\Repositories\EloquentMetricsComparisonRepository;
 use App\Repositories\EloquentMetricsSnapshotRepository;
 use App\Repositories\EloquentMetricsSnapshotWriter;
+use App\Repositories\EloquentProductMetricsRepository;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 
@@ -38,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(MetricsSnapshotRepository::class, EloquentMetricsSnapshotRepository::class);
         $this->app->bind(MetricsSnapshotWriter::class, EloquentMetricsSnapshotWriter::class);
         $this->app->bind(MetricsComparisonRepository::class, EloquentMetricsComparisonRepository::class);
+        $this->app->bind(ProductMetricsRepository::class, EloquentProductMetricsRepository::class);
 
         // Источник данных выбирается конфигом (analytics.source).
         $this->app->bind(DataSourceAdapter::class, fn ($app) => $app->make(DataSourceAdapterFactory::class)->make());

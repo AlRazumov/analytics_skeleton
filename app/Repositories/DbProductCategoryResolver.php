@@ -24,4 +24,11 @@ final class DbProductCategoryResolver implements ProductCategoryResolver
 
         return $hasNone ? [...$categories, CategoryRevenueCalculator::NO_CATEGORY] : $categories;
     }
+
+    public function categoryOf(string $productId): ?string
+    {
+        $category = StagingProduct::query()->where('external_id', $productId)->value('category');
+
+        return is_string($category) && $category !== '' ? $category : null;
+    }
 }

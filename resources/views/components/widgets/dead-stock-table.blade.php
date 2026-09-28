@@ -20,7 +20,7 @@
             <tbody>
                 @forelse ($data->rows as $row)
                     <tr>
-                        <td>{{ $row->productName }}</td>
+                        <td><x-widgets.product-link :id="$row->productId" :name="$row->productName" :period="$data->period" /></td>
                         <td>@if ($row->stockQty === null)—@else{{ \App\Support\Format::num($row->stockQty) }}@endif</td>
                         <td>{{ $row->lowerBound ? '≥ ' : '' }}{{ \App\Support\Format::num($row->daysSinceLastSale, 0) }}</td>
                     </tr>
