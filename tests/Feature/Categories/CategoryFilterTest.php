@@ -130,8 +130,9 @@ it('splits the ABC/XYZ matrix by category, keeping the classes computed over the
             ->assertSee('посчитаны по всему ассортименту');
         $matrix = $response->viewData('matrix');
 
-        // Число товаров в ячейке — ровно товары категории с этим (общим) классом.
-        $expected = array_count_values(array_map(fn ($id) => $classOf[$id], array_keys(array_filter($categoryOf, fn ($c) => $c === $category))));
+        // Число товаров в ячейке — ровно товары категории с этим (общим) классом
+        // (товар без продаж за окно, например неликвид, класса не получает).
+        $expected = array_count_values(array_map(fn ($id) => $classOf[$id], array_keys(array_filter($categoryOf, fn ($c, $id) => $c === $category && isset($classOf[$id]), ARRAY_FILTER_USE_BOTH))));
         expect(array_map(fn ($c) => $c[0], $cells($matrix)))->toEqual($expected);
         foreach ($cells($matrix) as $key => [$items, $value]) {
             $sum[$key] = [($sum[$key][0] ?? 0) + $items, round(($sum[$key][1] ?? 0) + $value, 2)];

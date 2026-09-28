@@ -29,10 +29,10 @@ final readonly class MockScenarioConfig
         /** Товаров с дисбалансом между двумя складами (сценарий 7, см. MockAdapter::imbalanceMovements). */
         public int $imbalanceCount = 0,
         /**
-         * Товаров с «потерянными продажами»: продавались в предпоследнем
-         * месяце окна истории, в последнем — ни одной сделки (сценарий для
-         * метрики LostSalesCalculator, см. MockAdapter::lostSalesGuaranteedDeals).
-         * Не связан со стоком/движениями — влияет только на fetchDeals().
+         * Товаров с «потерянными продажами»: обычная жизнь товара, но в
+         * последнем месяце окна истории ни одной продажи со склада (и значит
+         * сделки), остаток есть (сценарий для LostSalesCalculator, см.
+         * MockAdapter::regularMovements).
          */
         public int $lostSalesCount = 0,
         /**
@@ -45,8 +45,9 @@ final readonly class MockScenarioConfig
         /**
          * Товаров с возвратами (отрицательные сделки): в последнем месяце окна
          * истории все продажи месяца возвращены (нетто 0, продажи есть), у
-         * каждого второго — ещё и продажа предыдущего месяца (нетто < 0). См.
-         * MockAdapter::returnsDeals. Движения не меняет — только fetchDeals().
+         * каждого второго — ещё и продажа предыдущего месяца (нетто < 0);
+         * возвращённый товар приходит обратно на склад. См.
+         * MockAdapter::returnsMovements.
          */
         public int $returnsCount = 0,
     ) {}

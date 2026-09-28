@@ -36,7 +36,7 @@ return [
 
     // Минимальный memory_limit для metrics:calculate: команда поднимает лимит
     // до этого значения (и никогда не опускает). Пик: medium — больше
-    // стандартных 128M, large — ~650 МБ (docs/reports/stage-23-days-of-stock.md).
+    // стандартных 128M, large — ~520 МБ (docs/reports/stage-30-consistent-mock.md).
     'calculate_memory_limit' => env('ANALYTICS_CALCULATE_MEMORY_LIMIT', '1G'),
 
     // Реестр метрик по типам сущностей: все известные и включённые
