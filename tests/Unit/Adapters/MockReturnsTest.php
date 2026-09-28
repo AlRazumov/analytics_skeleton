@@ -59,18 +59,24 @@ it('does not change the ordinary deals or other scenarios', function () {
     $returnIds = array_keys($with->manifest()->returnProducts);
 
     $key = fn (Deal $d) => [$d->id, $d->productId, $d->amount, $d->date->format(DATE_ATOM), $d->sellerId];
-    $scenarioDeal = fn (Deal $d) => str_starts_with($d->id, 'deal-return') || str_starts_with($d->id, 'deal-returns-');
+    $scenarioDeal = fn (Deal $d) => str_starts_with($d->id, 'deal-return-');
 
     expect(array_map($key, array_values(array_filter(allMockDeals($with), fn (Deal $d) => ! $scenarioDeal($d)))))
         ->toBe(array_map($key, allMockDeals($without)));
 
-    // Движения товаров сценария — как у обычных (сценарий их не трогает).
+    // Движения товаров сценария — как у обычных, плюс приходы-возвраты
+    // (meta.return_of_day): сценарий только добавляет возвраты.
     $range = new DateRange($with->historyStart(), $with->historyEnd());
-    $movements = fn (MockAdapter $a) => array_map(
+    $movements = fn (MockAdapter $a, bool $withReturns) => array_map(
         fn ($m) => [$m->id, $m->quantity],
-        array_values(array_filter(iterator_to_array($a->fetchStockMovements($range), false), fn ($m) => in_array($m->productId, $returnIds, true))),
+        array_values(array_filter(
+            iterator_to_array($a->fetchStockMovements($range), false),
+            fn ($m) => in_array($m->productId, $returnIds, true) && (isset($m->meta['return_of_day']) === $withReturns),
+        )),
     );
-    expect($movements($with))->toBe($movements($without));
+    expect($movements($with, false))->toBe($movements($without, false))
+        ->and($movements($with, true))->not->toBeEmpty()
+        ->and($movements($without, true))->toBe([]);
 });
 
 it('makes returns products not lost in the fully refunded last month', function () {

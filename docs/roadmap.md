@@ -38,6 +38,7 @@
 | 27 | Индикатор свежести данных: журнал запусков `metrics_runs`, плашка «Данные рассчитаны … за …» с предупреждениями | stages/stage-27-data-freshness.md | done (см. reports/stage-27-data-freshness.md) | 26 |
 | 28 | Карточка товара: все метрики одного товара на одной странице, ссылки из таблиц | stages/stage-28-product-card.md | done (см. reports/stage-28-product-card.md) | 26, 27 |
 | 29 | Пороги аналитики (`stock`, `lost_sales`, `transfers`, `display`) в `.env` со строгим разбором | stages/stage-29-config-env.md | done (см. reports/stage-29-config-env.md) | 27 |
+| 30 | Согласованный мок: сделки выводятся из продаж со склада (штуки × цена), сценарии сделок — в движениях | stages/stage-30-consistent-mock.md | done (см. reports/stage-30-consistent-mock.md) | 24, 28 |
 
 ## TODO before real adapters
 
@@ -437,6 +438,13 @@ widgets/presentation. Первый шаг
 переменные (`ANALYTICS_DISPLAY_TIMEZONE`, по умолчанию `Europe/Moscow`;
 `ANALYTICS_STALE_AFTER_HOURS`, по умолчанию 36). Плашка появится после
 первого `metrics:calculate` (ночного или ручного).
+
+После этапов 28–29 (карточка товара, пороги в `.env`) — миграций нет, новые
+переменные необязательны (`docs/features.md`); пересчёт не нужен.
+
+После этапа 30 (согласованный мок) — миграций и переменных нет; **нужен
+`php artisan metrics:calculate`**: данные мока другие (сделка на каждую
+продажу со склада), меняются все суммы на страницах.
 
 ## Git/GitHub (обновлено 2026-09-28)
 

@@ -111,6 +111,20 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
     /** @var list<int> день года (1..366) для каждого дня окна истории */
     private readonly array $dayOfYear;
 
+    /** @var list<float> сезонный множитель спроса обычных товаров для каждого дня окна истории */
+    private readonly array $demandMultiplier;
+
+    /** @var array<string, int> 'Y-m-d' => индекс дня окна истории (см. dayOfMovement) */
+    private readonly array $dayByDate;
+
+    private ?MockScenarioManifest $manifest = null;
+
+    /** @var array<int, array<int, DateTimeImmutable>> см. momentOf */
+    private array $moments = [];
+
+    /** @var array<int, array{list<string>, non-empty-list<float>}> см. workingSellers */
+    private array $workingSellersByDay = [];
+
     /** @var list<array{id: string, name: string, branch: string, weight: float, from: int, to: int, active: bool}> */
     private readonly array $sellerPlan;
 
@@ -123,8 +137,9 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
     ) {
         // Список из одного паттерна на сейчас — расширяемо: второй
         // сезонный паттерн добавляется сюда без переписывания
-        // generate*-логики (см. докблок SeasonalPattern). Паттерны
-        // применяются к сделкам; сезонность остатков — в movementsFor.
+        // generate*-логики (см. докблок SeasonalPattern). Паттерны —
+        // множитель к продажам обычных товаров (regularMovements); у товаров
+        // сценария 'seasonal' своя, более сильная волна.
         $this->seasonalPatterns = [new NewYearSeasonalPattern];
 
         $this->scenarios = $scenarios ?? $profile->scenarios();
@@ -149,10 +164,17 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         $this->kindRanges = $ranges;
 
         $doy = [];
+        $demand = [];
+        $dayByDate = [];
         for ($d = 0; $d < $this->historyDays; $d++) {
-            $doy[] = (int) $this->historyStart->modify("+{$d} days")->format('z') + 1;
+            $date = $this->historyStart->modify("+{$d} days");
+            $doy[] = (int) $date->format('z') + 1;
+            $demand[] = $this->seasonalMultiplier((int) $date->format('n'));
+            $dayByDate[$date->format('Y-m-d')] = $d;
         }
         $this->dayOfYear = $doy;
+        $this->demandMultiplier = $demand;
+        $this->dayByDate = $dayByDate;
         $this->sellerPlan = $this->buildSellerPlan();
     }
 
@@ -197,242 +219,128 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
 
     /**
      * Сделки за $period (границы включительно по дате), только в окне
-     * истории (historyStart()..historyEnd()), как и у остальных fetch*.
-     *
-     * Содержимое сделки (id, товар, сумма, момент) зависит только от seed
-     * и календарного месяца сделки: у каждого месяца окна свой
-     * детерминированный генератор случайных чисел (см. dealsOfMonth), id —
-     * сквозной номер от первого месяца окна. Запрошенный диапазон только
-     * выбирает, какие из этих сделок вернуть, поэтому выручка одного месяца
-     * одинакова при любом периоде запроса. Порядок — по месяцам, внутри
-     * месяца в порядке генерации (не по дате).
+     * истории. Сделка — денежное отражение продажи со склада: каждое
+     * движение sale даёт сделку с той же датой и суммой «штуки × цена
+     * товара» (priceOf); возврат (приход с meta.return_of_day, сценарий
+     * 'returns') — сделку с минусом той же суммы и тем же продавцом.
+     * Продавец — функция (seed, товар, день продажи), как и всё остальное
+     * содержимое сделки, поэтому сделки не зависят от запрошенного диапазона.
+     * Порядок — по товарам, внутри товара по времени.
      */
     public function fetchDeals(DateRange $period): iterable
     {
-        $from = max($this->dayOf($period->start), $this->historyStart->format('Y-m-d'));
-        $to = min($this->dayOf($period->end), $this->historyEnd()->format('Y-m-d'));
-        if ($from > $to) {
+        $fromDay = max(0, $this->dayIndex($period->start));
+        $toDay = min($this->historyDays - 1, $this->dayIndex($period->end));
+        if ($fromDay > $toDay) {
             return;
         }
 
-        $firstMonth = new DateTimeImmutable($this->historyStart->format('Y-m-01'));
-        $wantedFirst = new DateTimeImmutable(substr($from, 0, 7).'-01');
-        $wantedLast = new DateTimeImmutable(substr($to, 0, 7).'-01');
-
-        // Номер первой сделки месяца — число сделок во всех предыдущих месяцах окна.
-        $counter = 0;
-        for ($month = $firstMonth; $month < $wantedFirst; $month = $month->modify('+1 month')) {
-            $counter += $this->dealsInMonth($month);
-        }
-
-        for ($month = $wantedFirst; $month <= $wantedLast; $month = $month->modify('+1 month')) {
-            foreach ($this->dealsOfMonth($month, $counter) as $deal) {
-                $day = $deal->date->format('Y-m-d');
-                if ($day >= $from && $day <= $to) {
+        for ($i = 1; $i <= $this->profile->productCount(); $i++) {
+            $price = $this->priceOf($i);
+            foreach ($this->movementsFor($i, $fromDay, $toDay) as $movement) {
+                $deal = $this->dealOf($i, $movement, $price);
+                if ($deal !== null) {
                     yield $deal;
                 }
             }
-            $counter += $this->dealsInMonth($month);
         }
     }
 
-    private function dealsInMonth(DateTimeImmutable $monthStart): int
+    /** Сделка движения: продажа, возврат продажи или null (остальные движения). */
+    private function dealOf(int $index, StockMovement $movement, float $price): ?Deal
     {
-        return (int) round($this->profile->dealsPerMonth() * $this->seasonalMultiplier((int) $monthStart->format('n')));
-    }
+        if ($movement->type === StockMovementType::Sale) {
+            $day = $this->dayOfMovement($movement);
 
-    /**
-     * Все сделки календарного месяца (без фильтра по окну и запросу).
-     *
-     * @return Generator<Deal>
-     */
-    private function dealsOfMonth(DateTimeImmutable $monthStart, int $firstNumber): Generator
-    {
-        $randomizer = $this->randomizerFor('deals:'.$monthStart->format('Y-m'));
-        // Продавец — из отдельного потока: основной поток (товар, сумма, дата)
-        // остаётся прежним, поэтому выручка и сезонность не меняются.
-        $sellerRandomizer = $this->randomizerFor('deal-sellers:'.$monthStart->format('Y-m'));
-        $monthEnd = $monthStart->modify('+1 month -1 second');
-        $productCount = $this->profile->productCount();
-        $count = $this->dealsInMonth($monthStart);
-        // Потерянные продажи (см. lostSalesGuaranteedDeals): в последнем
-        // месяце окна истории у этих товаров не должно быть НИ ОДНОЙ
-        // сделки, поэтому обычные случайные попадания на них здесь гасятся.
-        $isLastMonth = $monthStart->format('Y-m') === $this->historyEnd()->format('Y-m');
-        // Обычные сделки товаров с возвратами последнего месяца — их тоже
-        // возвращают (см. returnsDeals).
-        $toRefund = [];
-
-        for ($i = 1; $i <= $count; $i++) {
-            $productIndex = $randomizer->getInt(1, $productCount);
-            // Сумма сделки: условный диапазон 5.00-500.00, ориентировочно.
-            $amount = $randomizer->getInt(500, 50000) / 100;
-
-            $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
-            $sellerId = $this->pickSeller($sellerRandomizer, $date);
-
-            if ($isLastMonth && $this->kindOf($productIndex) === 'lost_sales') {
-                continue;
-            }
-
-            $deal = new Deal(
-                id: 'deal-'.($firstNumber + $i),
-                productId: "prod-{$productIndex}",
-                amount: $amount,
-                date: $date,
-                sellerId: $sellerId,
-            );
-            if ($isLastMonth && $this->kindOf($productIndex) === 'returns') {
-                $toRefund[] = $deal;
-            }
-
-            yield $deal;
-        }
-
-        if (! $isLastMonth) {
-            yield from $this->lostSalesGuaranteedDeals($monthStart, $monthEnd);
-        }
-
-        yield from $this->returnsDeals($monthStart, $monthEnd, $isLastMonth ? $toRefund : null);
-    }
-
-    /**
-     * Сценарий «возвраты» (отрицательные сделки, как их допускает контракт):
-     * товары из диапазона 'returns' получают одну гарантированную продажу в
-     * каждом месяце окна истории. В последнем месяце ($toRefund не null)
-     * возвращаются все продажи месяца — обычные ($toRefund) и гарантированная:
-     * нетто месяца 0, хотя продажи были. У каждого второго товара сценария
-     * (нечётная позиция) в последнем месяце возвращается ещё и гарантированная
-     * продажа предыдущего месяца — нетто месяца отрицательное. Возврат — с тем
-     * же продавцом, не раньше продажи. Отдельные потоки случайных чисел:
-     * обычные сделки и остальные сценарии не меняются.
-     *
-     * @param  list<Deal>|null  $toRefund
-     * @return Generator<Deal>
-     */
-    private function returnsDeals(DateTimeImmutable $monthStart, DateTimeImmutable $monthEnd, ?array $toRefund): Generator
-    {
-        $sales = $this->returnsGuaranteedSales($monthStart, $monthEnd);
-        yield from $sales;
-
-        if ($toRefund === null) {
-            return;
-        }
-
-        $randomizer = $this->randomizerFor('returns-refunds:'.$monthStart->format('Y-m'));
-        foreach ([...$toRefund, ...array_values($sales)] as $sale) {
-            yield new Deal(
-                id: 'deal-return-'.$sale->id,
-                productId: $sale->productId,
-                amount: -$sale->amount,
-                date: $this->randomDateBetween($randomizer, $sale->date, $monthEnd),
-                sellerId: $sale->sellerId,
+            return new Deal(
+                id: "deal-{$index}-{$day}-{$movement->warehouseId}",
+                productId: $movement->productId,
+                amount: round(-$movement->quantity * $price, 2),
+                date: $movement->date,
+                sellerId: $this->sellerFor($index, $day),
             );
         }
 
-        $previousMonth = $monthStart->modify('-1 month');
-        $previousSales = $this->returnsGuaranteedSales($previousMonth, $monthStart->modify('-1 second'));
-        foreach ($this->productIndexesOf('returns') as $k => $index) {
-            if ($k % 2 === 1) {
-                $sale = $previousSales[$index];
-                yield new Deal(
-                    id: 'deal-return-'.$sale->id,
-                    productId: $sale->productId,
-                    amount: -$sale->amount,
-                    date: $this->randomDateBetween($randomizer, $monthStart, $monthEnd),
-                    sellerId: $sale->sellerId,
-                );
-            }
+        $saleDay = $movement->meta['return_of_day'] ?? null;
+        if (! is_int($saleDay)) {
+            return null;
         }
+
+        return new Deal(
+            id: "deal-return-{$index}-{$saleDay}-{$movement->warehouseId}",
+            productId: $movement->productId,
+            amount: -round($movement->quantity * $price, 2),
+            date: $movement->date,
+            sellerId: $this->sellerFor($index, $saleDay),
+        );
     }
 
     /**
-     * Гарантированная продажа месяца каждого товара сценария 'returns'.
-     *
-     * @return array<int, Deal> индекс товара => продажа
+     * Цена единицы товара (условные 5.00–500.00): одна на всю историю, по
+     * seed и товару.
      */
-    private function returnsGuaranteedSales(DateTimeImmutable $monthStart, DateTimeImmutable $monthEnd): array
+    private function priceOf(int $index): float
     {
-        $randomizer = $this->randomizerFor('returns-deals:'.$monthStart->format('Y-m'));
-        $sellerRandomizer = $this->randomizerFor('returns-sellers:'.$monthStart->format('Y-m'));
-
-        $sales = [];
-        foreach ($this->productIndexesOf('returns') as $index) {
-            $amount = $randomizer->getInt(500, 50000) / 100;
-            $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
-            $sales[$index] = new Deal(
-                id: 'deal-returns-'.$index.'-'.$monthStart->format('Y-m'),
-                productId: "prod-{$index}",
-                amount: $amount,
-                date: $date,
-                sellerId: $this->pickSeller($sellerRandomizer, $date),
-            );
-        }
-
-        return $sales;
+        return $this->randomizerFor("price:{$index}")->getInt(500, 50000) / 100;
     }
 
     /**
-     * ЭВРИСТИКА ДЛЯ ДЕМО: сценарий «потерянные продажи» для LostSalesCalculator
-     * (см. Known issues в docs/roadmap.md). Товары из диапазона 'lost_sales'
-     * получают ровно одну гарантированную сделку в каждом месяце окна
-     * истории, КРОМЕ последнего — там (см. dealsOfMonth выше) обычные
-     * случайные попадания на них тоже гасятся, поэтому в последнем месяце
-     * у них нет ни одной сделки, а в предыдущих — есть.
-     *
-     * @return Generator<Deal>
+     * Продавец продажи товара в день $day: с вероятностью «без продавца» —
+     * null, иначе по весам среди тех, кто в этот день работает. Случайные
+     * числа — хэш (seed, товар, день), а не общий поток: продавец не зависит
+     * от того, какие ещё сделки сгенерированы, и возврат получает продавца
+     * своей продажи.
      */
-    private function lostSalesGuaranteedDeals(DateTimeImmutable $monthStart, DateTimeImmutable $monthEnd): Generator
+    private function sellerFor(int $index, int $day): ?string
     {
-        $randomizer = $this->randomizerFor('lost-sales-deals:'.$monthStart->format('Y-m'));
-        $sellerRandomizer = $this->randomizerFor('lost-sales-sellers:'.$monthStart->format('Y-m'));
-
-        foreach ($this->productIndexesOf('lost_sales') as $index) {
-            $amount = $randomizer->getInt(500, 50000) / 100;
-            $date = $this->randomDateBetween($randomizer, $monthStart, $monthEnd);
-
-            yield new Deal(
-                id: 'deal-lost-'.$index.'-'.$monthStart->format('Y-m'),
-                productId: "prod-{$index}",
-                amount: $amount,
-                date: $date,
-                sellerId: $this->pickSeller($sellerRandomizer, $date),
-            );
-        }
-    }
-
-    /**
-     * Продавец сделки: с вероятностью «без продавца» — null, иначе по весам
-     * среди тех, кто в этот день работает. Оба случайных числа берутся
-     * всегда, чтобы поток не зависел от ветвлений.
-     */
-    private function pickSeller(Randomizer $randomizer, DateTimeImmutable $date): ?string
-    {
-        $unassignedRoll = $randomizer->nextFloat();
-        $pickRoll = $randomizer->nextFloat();
-
         $unassignedShare = match ($this->sellerCoverage) {
             SellerCoverage::None => 1.0,
             SellerCoverage::Partial => self::UNASSIGNED_SHARE_PARTIAL,
             SellerCoverage::Full => self::UNASSIGNED_SHARE_FULL,
         };
-        if ($unassignedRoll < $unassignedShare) {
+        if ($this->roll("seller-assigned:{$index}:{$day}") < $unassignedShare) {
             return null;
         }
 
-        $day = $this->dayIndex($date);
-        $working = array_filter($this->sellerPlan, static fn (array $s): bool => $day >= $s['from'] && $day <= $s['to']);
-        $total = array_sum(array_column($working, 'weight'));
-        $threshold = $pickRoll * $total;
-        $cumulative = 0.0;
-        foreach ($working as $seller) {
-            $cumulative += $seller['weight'];
-            if ($threshold < $cumulative) {
-                return $seller['id'];
+        [$ids, $cumulative] = $this->workingSellers($day);
+        $threshold = $this->roll("seller-pick:{$index}:{$day}") * end($cumulative);
+        foreach ($cumulative as $k => $bound) {
+            if ($threshold < $bound) {
+                return $ids[$k];
             }
         }
 
         return null;
+    }
+
+    /**
+     * Продавцы, работающие в день $day, и накопленные веса (кэш по дню).
+     *
+     * @return array{list<string>, non-empty-list<float>}
+     */
+    private function workingSellers(int $day): array
+    {
+        if (! isset($this->workingSellersByDay[$day])) {
+            $ids = [];
+            $cumulative = [];
+            $sum = 0.0;
+            foreach ($this->sellerPlan as $seller) {
+                if ($day >= $seller['from'] && $day <= $seller['to']) {
+                    $sum += $seller['weight'];
+                    $ids[] = $seller['id'];
+                    $cumulative[] = $sum;
+                }
+            }
+            $this->workingSellersByDay[$day] = [$ids, $cumulative === [] ? [0.0] : $cumulative];
+        }
+
+        return $this->workingSellersByDay[$day];
+    }
+
+    /** Детерминированное число из [0; 1) по (seed, $context) — без генератора. */
+    private function roll(string $context): float
+    {
+        return hexdec(substr(hash('xxh3', $this->seed.':'.$context), 0, 13)) / 2 ** 52;
     }
 
     /**
@@ -477,11 +385,6 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         }
 
         return $plan;
-    }
-
-    private function dayOf(DateTimeImmutable $date): string
-    {
-        return $date->format('Y-m-d');
     }
 
     /**
@@ -544,8 +447,13 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         return $this->historyStart->modify('+'.($this->historyDays - 1).' days');
     }
 
-    /** Эталонные факты о сценариях (см. MockScenarioManifest). */
+    /** Эталонные факты о сценариях (см. MockScenarioManifest); считаются один раз. */
     public function manifest(): MockScenarioManifest
+    {
+        return $this->manifest ??= $this->buildManifest();
+    }
+
+    private function buildManifest(): MockScenarioManifest
     {
         $ids = fn (string $kind): array => array_map(
             static fn (int $i): string => "prod-{$i}",
@@ -621,12 +529,11 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         }
 
         $returns = [];
-        $lastMonth = new DateTimeImmutable($this->historyEnd()->format('Y-m-01'));
-        $previousSales = $this->returnsGuaranteedSales($lastMonth->modify('-1 month'), $lastMonth->modify('-1 second'));
+        $lastMonth = $this->historyEnd()->format('Y-m');
         foreach ($this->productIndexesOf('returns') as $k => $i) {
             $returns["prod-{$i}"] = [
-                'month' => $lastMonth->format('Y-m'),
-                'month_net' => $k % 2 === 1 ? -$previousSales[$i]->amount : 0.0,
+                'month' => $lastMonth,
+                'month_net' => $k % 2 === 1 ? -$this->lastSaleAmount($i, $this->previousMonthStartDay(), $this->lastMonthStartDay() - 1) : 0.0,
             ];
         }
 
@@ -662,14 +569,17 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         // id — функция (товар, день, тип, склад): за день на складе бывает
         // не больше одного движения каждого типа, а от диапазона запроса
         // id зависеть не должен.
-        $emit = function (int $day, int $hour, int $warehouse, StockMovementType $type, int $quantity, array $meta = []) use ($index): StockMovement {
+        // Строка id товара и момент (день, час) — общие экземпляры для всех
+        // движений (и сделок из них): на Large это миллионы объектов.
+        $productId = "prod-{$index}";
+        $emit = function (int $day, int $hour, int $warehouse, StockMovementType $type, int $quantity, array $meta = []) use ($index, $productId): StockMovement {
             return new StockMovement(
                 id: "mv-{$index}-{$day}-{$type->value}-{$warehouse}",
-                productId: "prod-{$index}",
+                productId: $productId,
                 warehouseId: $this->warehouseIds[$warehouse],
                 quantity: (float) $quantity,
                 type: $type,
-                date: $this->historyStart->modify("+{$day} days")->setTime($hour, 0),
+                date: $this->momentOf($day, $hour),
                 meta: $meta,
             );
         };
@@ -680,13 +590,15 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
             'spike' => $this->spikeMovements($fromDay, $toDay, $emit),
             'imbalance' => $this->imbalanceMovements($index, $fromDay, $toDay, $emit),
             'no_sales_donor' => $this->noSalesDonorMovements($index, $fromDay, $toDay, $emit),
+            'returns' => $this->returnsMovements($index, $fromDay, $toDay, $emit),
             default => $this->regularMovements($index, $kind, $fromDay, $toDay, $emit),
         };
     }
 
     /**
-     * Обычный товар (а также dead и seasonal — их отличия заданы
-     * kind): случайные, но детерминированные по $seed продажи,
+     * Обычный товар (а также dead, seasonal, lost_sales и returns — их
+     * отличия заданы kind): случайные, но детерминированные по $seed продажи
+     * с сезонным множителем спроса,
      * пополнение по точке заказа, перемещения между складами,
      * изредка списания и корректировки. В хронологическом порядке
      * внутри дня (приёмка 08, перемещение 10, продажа 12, списание 16,
@@ -706,6 +618,9 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         $stock = array_fill(0, $warehouseCount, 0);
 
         $dead = $kind === 'dead';
+        // Потерянные продажи: в последнем месяце окна у товара нет ни одной
+        // продажи (остаток при этом есть — пополнение идёт как обычно).
+        $noSalesFrom = $kind === 'lost_sales' ? $this->lastMonthStartDay() : $this->historyDays;
         // Мёртвый товар живёт обычной жизнью до дня последней продажи (включительно), дальше движений нет.
         $lastDay = $dead
             ? $this->historyDays - 1 - $this->deadAgeFor($this->positionOf('dead', $index))
@@ -738,8 +653,8 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
                 }
             }
 
-            $multiplier = $seasonal ? 1 + 0.8 * cos(2 * M_PI * ($this->dayOfYear[$day] - 355) / 365) : 1.0;
-            if ($random->getInt(1, 100) <= 60) {
+            $multiplier = $seasonal ? 1 + 0.8 * cos(2 * M_PI * ($this->dayOfYear[$day] - 355) / 365) : $this->demandMultiplier[$day];
+            if ($random->getInt(1, 100) <= 60 && $day < $noSalesFrom) {
                 $quantity = $random->getInt(1, max(1, (int) round(2 * $lambda * $multiplier)));
                 $candidates = array_keys(array_filter($stock, static fn (int $s): bool => $s >= $quantity));
                 if ($candidates !== []) {
@@ -789,6 +704,126 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
                 }
             }
         }
+    }
+
+    /**
+     * Сценарий «возвраты» (отрицательные сделки, как их допускает контракт):
+     * обычная жизнь товара (regularMovements), но в последнем месяце окна
+     * каждая продажа возвращается — приход того же количества на тот же
+     * склад в 14:00 случайного дня от продажи до конца истории, meta
+     * return_of_day — день продажи (по нему fetchDeals строит сделку-возврат):
+     * нетто выручки месяца 0, хотя продажи были. У каждого второго товара
+     * сценария (нечётная позиция) в последнем месяце возвращается ещё и
+     * последняя продажа предыдущего месяца — нетто отрицательное.
+     *
+     * @return Generator<StockMovement>
+     */
+    private function returnsMovements(int $index, int $fromDay, int $toDay, callable $emit): Generator
+    {
+        $lastMonth = $this->lastMonthStartDay();
+        $previousMonth = $this->previousMonthStartDay();
+        $returnPrevious = $this->positionOf('returns', $index) % 2 === 1;
+        // Возвраты видят продажи раньше запрошенного диапазона: читаем с начала
+        // месяца, чьи продажи возвращаются, и отдаём только дни диапазона.
+        $scanFrom = min($fromDay, $returnPrevious ? $previousMonth : $lastMonth);
+
+        /** @var array<int, list<StockMovement>> $pending день возврата => возвраты */
+        $pending = [];
+        $lastPreviousSale = null;
+        $previousDone = ! $returnPrevious;
+
+        foreach ($this->regularMovements($index, 'returns', $scanFrom, $toDay, $emit) as $movement) {
+            $day = $this->dayOfMovement($movement);
+            if (! $previousDone && $day >= $lastMonth) {
+                $previousDone = true;
+                if ($lastPreviousSale !== null) {
+                    $pending[$this->previousReturnDay($index)][] = $this->returnOf($index, $lastPreviousSale, $this->previousReturnDay($index));
+                }
+            }
+            // Возвраты в 14:00 — раньше движений того же дня после 14:00.
+            ksort($pending);
+            foreach ($pending as $returnDay => $returns) {
+                if ($returnDay > $day || ($returnDay === $day && (int) $movement->date->format('G') < 14)) {
+                    break;
+                }
+                if ($returnDay >= $fromDay) {
+                    yield from $returns;
+                }
+                unset($pending[$returnDay]);
+            }
+
+            if ($movement->type === StockMovementType::Sale) {
+                if ($day >= $lastMonth) {
+                    $returnDay = $day + (int) floor($this->roll("return:{$index}:{$day}") * ($this->historyDays - $day));
+                    $pending[$returnDay][] = $this->returnOf($index, $movement, $returnDay);
+                } elseif ($day >= $previousMonth) {
+                    $lastPreviousSale = $movement;
+                }
+            }
+            if ($day >= $fromDay) {
+                yield $movement;
+            }
+        }
+
+        if (! $previousDone && $toDay >= $lastMonth && $lastPreviousSale !== null) {
+            $pending[$this->previousReturnDay($index)][] = $this->returnOf($index, $lastPreviousSale, $this->previousReturnDay($index));
+        }
+        ksort($pending);
+        foreach ($pending as $returnDay => $returns) {
+            if ($returnDay >= $fromDay && $returnDay <= $toDay) {
+                yield from $returns;
+            }
+        }
+    }
+
+    /** Возврат продажи $sale в день $returnDay: приход на тот же склад в 14:00. */
+    private function returnOf(int $index, StockMovement $sale, int $returnDay): StockMovement
+    {
+        $saleDay = $this->dayOfMovement($sale);
+
+        return new StockMovement(
+            id: "mv-{$index}-{$returnDay}-return-{$saleDay}-{$sale->warehouseId}",
+            productId: $sale->productId,
+            warehouseId: $sale->warehouseId,
+            quantity: -$sale->quantity,
+            type: StockMovementType::Receipt,
+            date: $this->momentOf($returnDay, 14),
+            meta: ['return_of_day' => $saleDay],
+        );
+    }
+
+    /** День возврата последней продажи предыдущего месяца — в последнем месяце окна. */
+    private function previousReturnDay(int $index): int
+    {
+        $lastMonth = $this->lastMonthStartDay();
+
+        return $lastMonth + (int) floor($this->roll("return-previous:{$index}") * ($this->historyDays - $lastMonth));
+    }
+
+    /** Сумма сделки последней продажи товара в днях [$fromDay..$toDay] (0 — продаж нет). */
+    private function lastSaleAmount(int $index, int $fromDay, int $toDay): float
+    {
+        $amount = 0.0;
+        $price = $this->priceOf($index);
+        foreach ($this->movementsFor($index, $fromDay, $toDay) as $movement) {
+            if ($movement->type === StockMovementType::Sale) {
+                $amount = round(-$movement->quantity * $price, 2);
+            }
+        }
+
+        return $amount;
+    }
+
+    /** Индекс первого дня последнего (календарного) месяца окна истории. */
+    private function lastMonthStartDay(): int
+    {
+        return $this->dayIndex(new DateTimeImmutable($this->historyEnd()->format('Y-m-01')));
+    }
+
+    /** Индекс первого дня предпоследнего месяца окна истории. */
+    private function previousMonthStartDay(): int
+    {
+        return max(0, $this->dayIndex((new DateTimeImmutable($this->historyEnd()->format('Y-m-01')))->modify('-1 month')));
     }
 
     /**
@@ -1038,6 +1073,19 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         return $best;
     }
 
+    /** Момент «день окна истории, час:00» — один экземпляр на пару (кэш). */
+    private function momentOf(int $day, int $hour): DateTimeImmutable
+    {
+        return $this->moments[$day][$hour] ??= $this->historyStart->modify("+{$day} days")->setTime($hour, 0);
+    }
+
+    /** Индекс дня движения мока (оно всегда внутри окна истории). */
+    private function dayOfMovement(StockMovement $movement): int
+    {
+        // Поиск по дате вместо diff() — заметно быстрее на миллионах движений Large.
+        return $this->dayByDate[$movement->date->format('Y-m-d')];
+    }
+
     /** Индекс дня от начала окна истории (может быть < 0 или ≥ длины). */
     private function dayIndex(DateTimeImmutable $date): int
     {
@@ -1054,14 +1102,6 @@ final class MockAdapter implements DataSourceAdapter, ProvidesHistoryBounds
         }
 
         return $multiplier;
-    }
-
-    private function randomDateBetween(Randomizer $randomizer, DateTimeImmutable $start, DateTimeImmutable $end): DateTimeImmutable
-    {
-        $startTs = $start->getTimestamp();
-        $endTs = max($startTs, $end->getTimestamp());
-
-        return (new DateTimeImmutable)->setTimestamp($randomizer->getInt($startTs, $endTs));
     }
 
     /**

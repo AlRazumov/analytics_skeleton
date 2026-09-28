@@ -138,11 +138,12 @@ it('leaves every other product exactly as without the scenario', function () {
     $movements = function (MockScenarioConfig $config) {
         $digest = fn (array $lines): string => md5(implode(',', $lines));
         $adapter = new MockAdapter(MockDataProfile::Small, 1, $config);
-        // Индексы no_sales_donor (как и lost_sales — но у неё нет особых
-        // движений) сдвигаются вместе с imbalanceCount (все — сценарии,
-        // занимающие резервируемые диапазоны id по порядку), поэтому из
-        // сравнения исключаются оба спецсценария остатков.
-        $excluded = $adapter->manifest()->imbalanceProducts + $adapter->manifest()->noSalesDonorProducts;
+        // Диапазоны id сценариев идут подряд, поэтому с imbalanceCount
+        // сдвигаются и следующие за ним (lost_sales, no_sales_donor, returns —
+        // у всех свои движения): из сравнения исключаются все четыре.
+        $m = $adapter->manifest();
+        $excluded = $m->imbalanceProducts + $m->noSalesDonorProducts + $m->returnProducts
+            + array_fill_keys($m->lostSalesProductIds, true);
         $byProduct = [];
         foreach ($adapter->fetchStockMovements(new DateRange($adapter->historyStart(), $adapter->historyEnd())) as $m) {
             if (! isset($excluded[$m->productId])) {
@@ -158,10 +159,11 @@ it('leaves every other product exactly as without the scenario', function () {
     [, $with] = $movements($base);
     [, $plain] = $movements($without);
 
-    // Каждый товар, не отданный под дисбаланс/донора-без-спроса, — те же движения;
-    // товары обоих сценариев в «без сценария» (indexRanges короче — все 0) — обычные.
-    expect(array_diff_key($plain, $with))->toHaveCount($base->imbalanceCount + $base->noSalesDonorCount);
-    foreach ($with as $productId => $hash) {
+    // Товары вне этих сценариев в обеих конфигурациях — те же движения.
+    $common = array_intersect_key($with, $plain);
+    expect($common)->toHaveCount(MockDataProfile::Small->productCount()
+        - $base->imbalanceCount - $base->lostSalesCount - $base->noSalesDonorCount - $base->returnsCount);
+    foreach ($common as $productId => $hash) {
         expect($plain[$productId])->toBe($hash);
     }
 });
