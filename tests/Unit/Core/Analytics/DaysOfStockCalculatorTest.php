@@ -1,8 +1,11 @@
 <?php
 
 use App\Core\Analytics\DaysOfStockCalculator;
+use App\Core\Analytics\Months;
 use App\Core\Analytics\ProductWarehouseKey;
+use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
+use App\Core\Domain\Enums\SellerCoverage;
 use App\Core\Domain\Enums\StockMovementType as T;
 
 /** Окно 28 дней, заканчивающееся 2026-03-31: 2026-03-04 .. 2026-03-31. */
@@ -169,6 +172,125 @@ it('respects a custom window and threshold', function () {
     expect($records['p1:w1']->valueMeta)->toMatchArray(['window_days' => 7, 'in_stock_days' => 7, 'stock_qty' => 13.0])
         ->and($records['p1:w1']->value)->toBe(13.0);
 });
+
+/** Считает обращения к fetchStock/fetchStockMovements обёрнутого адаптера. */
+function countingStockAdapter(DataSourceAdapter $inner): DataSourceAdapter
+{
+    return new class($inner) implements DataSourceAdapter
+    {
+        /** @var array{fetchStock: int, fetchStockMovements: int} */
+        public array $calls = ['fetchStock' => 0, 'fetchStockMovements' => 0];
+
+        public function __construct(private DataSourceAdapter $inner) {}
+
+        public function fetchDeals(DateRange $period): iterable
+        {
+            return $this->inner->fetchDeals($period);
+        }
+
+        public function fetchProducts(): iterable
+        {
+            return $this->inner->fetchProducts();
+        }
+
+        public function fetchWarehouses(): iterable
+        {
+            return $this->inner->fetchWarehouses();
+        }
+
+        public function fetchSellers(): iterable
+        {
+            return $this->inner->fetchSellers();
+        }
+
+        public function sellerCoverage(): SellerCoverage
+        {
+            return $this->inner->sellerCoverage();
+        }
+
+        public function fetchStockMovements(DateRange $period): iterable
+        {
+            $this->calls['fetchStockMovements']++;
+
+            return $this->inner->fetchStockMovements($period);
+        }
+
+        public function fetchStock(?DateTimeImmutable $asOf = null): iterable
+        {
+            $this->calls['fetchStock']++;
+
+            return $this->inner->fetchStock($asOf);
+        }
+
+        public function capabilities(): array
+        {
+            return $this->inner->capabilities();
+        }
+    };
+}
+
+/**
+ * Движения с января по апрель 2026: продажи через день, приходы, перемещения,
+ * пара, появляющаяся в середине диапазона, и движения в днях между окнами
+ * (1–3 марта не входят в 28-дневное окно марта).
+ */
+function multiMonthMoves(): array
+{
+    $moves = [];
+    for ($d = new DateTimeImmutable('2026-01-01'); $d <= new DateTimeImmutable('2026-04-30'); $d = $d->modify('+1 day')) {
+        $n = (int) $d->format('z');
+        if ($n % 2 === 0) {
+            $moves[] = stockMove($d->format('Y-m-d'), 'p1', 'w1', T::Sale, -3);
+        }
+        if ($n % 5 === 0) {
+            $moves[] = stockMove($d->format('Y-m-d'), 'p2', 'w1', T::Sale, -1);
+        }
+        if ($n % 14 === 0) {
+            $moves[] = stockMove($d->format('Y-m-d'), 'p1', 'w1', T::Receipt, 40);
+        }
+    }
+
+    return [
+        ...$moves,
+        stockMove('2026-03-02', 'p1', 'w1', T::Writeoff, -15),
+        stockMove('2026-03-03', 'p2', 'w1', T::TransferOut, -10),
+        stockMove('2026-03-03', 'p2', 'w2', T::TransferIn, 10),
+        stockMove('2026-02-10', 'p3', 'w1', T::Receipt, 25),
+        ...dailySales('p3', 'w1', 1, '2026-03-20', '2026-04-30'),
+    ];
+}
+
+it('reads the source twice for the whole range and matches month-by-month calculation', function (string $start, string $end) {
+    $opening = ['p1|w1' => 60.0, 'p2|w1' => 50.0];
+    $calc = new DaysOfStockCalculator(28, 7);
+    $adapter = countingStockAdapter(stubStockAdapter(multiMonthMoves(), $opening));
+
+    $range = new DateRange(new DateTimeImmutable($start), new DateTimeImmutable($end));
+    $records = $calc->calculate($adapter, $range);
+
+    // Эталон — каждый месяц отдельным диапазоном: одно окно, остаток накануне
+    // окна — прямо из fetchStock, без прокрутки.
+    $expected = [];
+    $expectedSkipped = ['no_demand' => 0, 'too_few_in_stock_days' => 0];
+    foreach (Months::in($range->start, $range->end) as $month) {
+        $single = new DaysOfStockCalculator(28, 7);
+        $monthRange = new DateRange(max($month->start, $range->start), min($month->end, $range->end));
+        array_push($expected, ...$single->calculate(stubStockAdapter(multiMonthMoves(), $opening), $monthRange));
+        $expectedSkipped['no_demand'] += $single->lastSkipped['no_demand'];
+        $expectedSkipped['too_few_in_stock_days'] += $single->lastSkipped['too_few_in_stock_days'];
+    }
+
+    $sorted = fn (array $rs) => collect($rs)->sortBy(fn ($r) => $r->period.$r->metricKey.$r->entityId)->values()->all();
+
+    expect($adapter->calls)->toBe(['fetchStock' => 1, 'fetchStockMovements' => 1])
+        ->and($sorted($records))->toEqual($sorted($expected))
+        ->and(collect($records)->pluck('period')->unique()->count())->toBeGreaterThan(1)
+        ->and($calc->lastSkipped)->toBe($expectedSkipped);
+})->with([
+    'whole months' => ['2026-02-01', '2026-04-30'],
+    // Последний месяц обрезан 5 марта: его окно перекрывает окно февраля.
+    'range ends mid-month' => ['2026-01-15', '2026-03-05'],
+]);
 
 it('builds the composite entity id in one place', function () {
     expect(ProductWarehouseKey::make('prod-1', 'wh-2'))->toBe('prod-1:wh-2')

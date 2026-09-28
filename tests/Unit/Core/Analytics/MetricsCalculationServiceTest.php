@@ -52,7 +52,8 @@ it('calls fetchDeals() once and reads stock/movements a documented number of tim
     // единственного вызова fetchDeals() и число обращений к остаткам и
     // движениям: turnover — по одному fetchStock() и fetchStockMovements()
     // (стартовый остаток), неликвиды — по одному, дни до обнуления — по одному
-    // на каждый месяц диапазона; итого (2 + число месяцев) каждого.
+    // на весь диапазон (этап 23; до него — по одному на каждый месяц); итого
+    // по три каждого, сколько бы месяцев ни было в диапазоне.
     // Раньше тест требовал ровно один fetchStockMovements(): это было верно
     // до появления метрик остатков, которые читают адаптер сами (этап 07).
     $deals = [new Deal('d-1', 'prod-1', 100.0, new DateTimeImmutable('2026-01-05'))];
@@ -63,8 +64,8 @@ it('calls fetchDeals() once and reads stock/movements a documented number of tim
     (new MetricsCalculationService)->calculate($adapter, $twoMonths);
 
     expect($adapter->fetchDealsCalls)->toBe(1)
-        ->and($adapter->fetchStockMovementsCalls)->toBe(2 + 2)
-        ->and($adapter->fetchStockCalls)->toBe(2 + 2);
+        ->and($adapter->fetchStockMovementsCalls)->toBe(3)
+        ->and($adapter->fetchStockCalls)->toBe(3);
 });
 
 it('throws when ABC and XYZ records for the same entityId disagree on period', function () {
