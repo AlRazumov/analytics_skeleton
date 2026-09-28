@@ -96,6 +96,17 @@ interface MetricsComparisonRepository
     public function latestPeriod(string $metricKey, PeriodGranularity $granularity): ?Period;
 
     /**
+     * Ближайшие к $period периоды той же гранулярности, за которые есть
+     * снэпшоты хотя бы одной из метрик $metrics (пары [entity_type,
+     * metric_key]): [предыдущий, следующий], null — такого нет. Пропуски в
+     * данных перескакиваются.
+     *
+     * @param  non-empty-list<array{string, string}>  $metrics
+     * @return array{?Period, ?Period}
+     */
+    public function adjacentPeriods(array $metrics, Period $period): array;
+
+    /**
      * Число сущностей за период в каждом из диапазонов $ranges (по value
      * текущего периода), в том же порядке. Считается одним агрегатным
      * запросом в БД; диапазоны могут пересекаться — сущность попадёт в

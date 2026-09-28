@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Dashboards;
 
+use App\Core\Analytics\DaysOfStockCalculator;
+use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Widgets\Contracts\ProductCategoryResolver;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Core\Widgets\ProductChartsProvider;
 use App\Core\Widgets\ProductTablesProvider;
 use App\Http\Controllers\Controller;
@@ -24,7 +27,7 @@ class StockDashboardController extends Controller
     use ResolvesMonthPeriod;
     use RespondsWithCsv;
 
-    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts, ProductCategoryResolver $categories): View
+    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts, ProductCategoryResolver $categories, MonthNavigationProvider $months): View
     {
         $period = $this->requestedMonth($request);
         $options = $this->categoryOptions($categories);
@@ -34,19 +37,26 @@ class StockDashboardController extends Controller
         $deadDays = (int) config('analytics.display.dead_stock_display_days');
         $riskDays = (int) config('analytics.display.stockout_risk_days');
 
+        $deadStock = config('analytics.features.dead_stock') ? $tables->deadStock($period, $deadDays, $limit, $category) : null;
+        $stockoutRisk = config('analytics.features.stockout_risk') ? $tables->stockoutRisk($period, $riskDays, $limit, $category) : null;
+
         return view('dashboards.stock', [
-            'deadStock' => config('analytics.features.dead_stock') ? $tables->deadStock($period, $deadDays, $limit, $category) : null,
+            'deadStock' => $deadStock,
             'deadStockChart' => config('analytics.features.dead_stock')
                 ? $charts->deadStockAge($period, $deadDays, array_values(array_map('intval', (array) config('analytics.display.dead_stock_age_bounds'))), $category)
                 : null,
             'deadStockDays' => $deadDays,
-            'stockoutRisk' => config('analytics.features.stockout_risk') ? $tables->stockoutRisk($period, $riskDays, $limit, $category) : null,
+            'stockoutRisk' => $stockoutRisk,
             'daysOfStockChart' => config('analytics.features.stockout_risk')
                 ? $charts->daysOfStock($period, array_values(array_map('intval', (array) config('analytics.display.days_of_stock_bounds'))), $category)
                 : null,
             'stockoutRiskDays' => $riskDays,
             'category' => $category,
             'categoryOptions' => $options,
+            'monthNav' => $months->for($deadStock->period ?? $stockoutRisk?->period, [
+                [DeadStockCalculator::ENTITY_TYPE, DeadStockCalculator::METRIC_KEY],
+                [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
+            ]),
         ]);
     }
 

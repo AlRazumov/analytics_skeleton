@@ -9,6 +9,8 @@
 <x-layouts.standalone title="Продавцы">
     <h1>Продавцы</h1>
 
+    <x-widgets.month-switcher :nav="$monthNav" />
+
     @if ($metric !== null && count($metrics) > 1)
         <p class="base-switch">
             Ранжировать по:

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Dashboards;
 use App\Core\Domain\Enums\Direction;
 use App\Core\Domain\Period;
 use App\Core\Widgets\Contracts\ProductCategoryResolver;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Core\Widgets\ProductChartsProvider;
 use App\Core\Widgets\ProductTablesProvider;
 use App\Http\Controllers\Controller;
@@ -24,7 +25,7 @@ class TurnoverDashboardController extends Controller
     use ResolvesMonthPeriod;
     use RespondsWithCsv;
 
-    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts, ProductCategoryResolver $categories): View
+    public function __invoke(Request $request, ProductTablesProvider $tables, ProductChartsProvider $charts, ProductCategoryResolver $categories, MonthNavigationProvider $months): View
     {
         $period = $this->requestedMonth($request);
         $options = $this->categoryOptions($categories);
@@ -41,6 +42,7 @@ class TurnoverDashboardController extends Controller
             'distribution' => $period === null ? null : $charts->turnoverDistribution($period, array_values(array_map('floatval', (array) config('analytics.display.turnover_bounds'))), $category),
             'category' => $category,
             'categoryOptions' => $options,
+            'monthNav' => $months->for($lowest->period, [['product', 'turnover']]),
         ]);
     }
 

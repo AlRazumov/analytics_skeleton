@@ -13,6 +13,8 @@
 <x-layouts.standalone title="Категории">
     <h1>Выручка по категориям</h1>
 
+    <x-widgets.month-switcher :nav="$monthNav" />
+
     @if ($yearAgoAvailable)
         <p class="base-switch">
             Сравнение:

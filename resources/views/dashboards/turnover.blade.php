@@ -2,6 +2,8 @@
     <h1>Оборачиваемость</h1>
     <p>Продано за месяц / средний остаток за месяц, в штуках («раз за месяц»).</p>
 
+    <x-widgets.month-switcher :nav="$monthNav" />
+
     <x-widgets.category-filter :options="$categoryOptions" :selected="$category" :keep="['period' => request()->query('period')]" />
 
     @if ($distribution !== null)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Dashboards;
 use App\Core\Domain\Enums\PeriodGranularity;
 use App\Core\Domain\PeriodRange;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Core\Widgets\WidgetDataProvider;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -21,7 +22,7 @@ class OverviewDashboardController extends Controller
 
     private const int OVERVIEW_MONTHS = 6;
 
-    public function __invoke(Request $request, WidgetDataProvider $widgets, MetricsComparisonRepository $repository): View
+    public function __invoke(Request $request, WidgetDataProvider $widgets, MetricsComparisonRepository $repository, MonthNavigationProvider $months): View
     {
         $end = $this->requestedMonth($request) ?? $repository->latestPeriod('revenue', PeriodGranularity::Month);
 
@@ -38,6 +39,7 @@ class OverviewDashboardController extends Controller
         return view('dashboards.overview', [
             'empty' => false,
             'periodKey' => $end->key(),
+            'monthNav' => $months->for($end->key(), [['product', 'revenue']]),
             'kpiCard' => $widgets->kpiCard('product', 'revenue', $period, unit: '₽'),
             'lineChart' => $widgets->lineChart('product', 'revenue', $period),
             'barChart' => $widgets->lineChartYoY('product', 'revenue', $period),

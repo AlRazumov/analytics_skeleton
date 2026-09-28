@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Dashboards;
 
+use App\Core\Widgets\DTO\MonthNavigation;
 use App\Core\Widgets\DTO\TopNData;
+use App\Core\Widgets\MonthNavigationProvider;
 use App\Http\Controllers\Controller;
 use App\Services\TopNTableProvider;
 use App\Support\TopNCsv;
@@ -28,7 +30,7 @@ class SellersDashboardController extends Controller
     /** Продавцов немного — на странице показываются все. */
     private const int LIMIT = 1000;
 
-    public function __invoke(Request $request, TopNTableProvider $tables): View
+    public function __invoke(Request $request, TopNTableProvider $tables, MonthNavigationProvider $months): View
     {
         $metric = $this->requestedMetric($request, $tables);
         $data = $metric === null ? null : $this->data($request, $tables, $metric);
@@ -38,6 +40,7 @@ class SellersDashboardController extends Controller
             'metrics' => $tables->enabledMetrics(self::ENTITY_TYPE) ?? [],
             'data' => $data,
             'chart' => $data === null ? null : $tables->chart($data),
+            'monthNav' => $metric === null || $data === null ? MonthNavigation::none() : $months->for($data->period, [[self::ENTITY_TYPE, $metric]]),
         ]);
     }
 
