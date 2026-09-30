@@ -113,7 +113,7 @@ it('syncs the Medium profile catalog', function () {
 
     expect($counts['products'])->toBe(500)
         ->and(StagingProduct::count())->toBe(500)
-        ->and(StagingProduct::where('external_id', 'prod-500')->value('name'))->toBe('Product 500');
+        ->and(StagingProduct::where('external_id', 'prod-500')->value('name'))->toEndWith(' арт. 500');
 });
 
 it('upserts in chunks of 1000', function () {

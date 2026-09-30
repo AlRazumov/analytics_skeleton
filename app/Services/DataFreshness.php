@@ -20,6 +20,8 @@ final readonly class DataFreshness
 
     public static function at(CarbonImmutable $now, int $staleAfterHours): self
     {
+        MetricsRun::failAbandoned($now);
+
         $lastSuccess = MetricsRun::query()
             ->where('status', MetricsRun::SUCCESS)
             ->orderByDesc('finished_at')

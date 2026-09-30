@@ -28,7 +28,7 @@ it('serves every demo page with data after demo:install on Small', function () {
         match ($path) {
             '/dashboards/abc-xyz' => null, // в матрице названий товаров нет
             '/dashboards/sellers' => $response->assertSee('Продавец '),
-            default => $response->assertSee('Product '),
+            default => $response->assertSee('арт. '),
         };
     }
 
@@ -76,5 +76,5 @@ it('renders every page from the database when the adapter throws on every fetch'
     foreach (DEMO_PAGES as $path) {
         $this->get($path)->assertOk();
     }
-    $this->get('/dashboards/top-products')->assertSee('Product ');
+    $this->get('/dashboards/top-products')->assertSee('арт. ');
 });

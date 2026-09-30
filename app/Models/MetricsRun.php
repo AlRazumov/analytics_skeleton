@@ -26,6 +26,9 @@ class MetricsRun extends Model
 
     public const string FAILED = 'failed';
 
+    /** Запуск в статусе running дольше этого срока считается оборвавшимся (как и срок блокировки планировщика). */
+    public const int ABANDONED_AFTER_HOURS = 3;
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -46,4 +49,21 @@ class MetricsRun extends Model
         'started_at' => 'immutable_datetime',
         'finished_at' => 'immutable_datetime',
     ];
+
+    /**
+     * Запуски, застрявшие в running (процесс убит, например по OOM, и не
+     * успел записать статус), помечаются failed — иначе плашка свежести
+     * показывала бы «Идёт расчёт» до следующего запуска.
+     */
+    public static function failAbandoned(CarbonImmutable $now): void
+    {
+        self::query()
+            ->where('status', self::RUNNING)
+            ->where('started_at', '<', $now->subHours(self::ABANDONED_AFTER_HOURS))
+            ->update([
+                'status' => self::FAILED,
+                'error' => 'Процесс расчёта оборвался, не сообщив о завершении.',
+                'finished_at' => $now,
+            ]);
+    }
 }

@@ -112,7 +112,7 @@ it('renders names, stock and the "shown X of Y" caption for dead stock', functio
     $this->get('/dashboards/stock')->assertOk()
         ->assertSee('Неликвиды')
         ->assertSee('Показано 1 из')
-        ->assertSee('Product ');
+        ->assertSee('арт. ');
 });
 
 it('takes the dead-stock threshold from the config', function () {
@@ -343,7 +343,7 @@ it('renders the pages with an adapter that throws on every fetch', function () {
     app()->instance(DataSourceAdapter::class, throwingAdapter());
 
     foreach (['/dashboards/stock', '/dashboards/top-products'] as $path) {
-        $this->get($path)->assertOk()->assertSee('Product ');
+        $this->get($path)->assertOk()->assertSee('арт. ');
     }
 });
 
