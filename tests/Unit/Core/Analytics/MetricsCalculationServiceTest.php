@@ -8,9 +8,9 @@ use App\Core\Domain\Deal;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 
 it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classification row per product', function () {
-    // prod-1: 700 из 1000 суммарной выручки (кумулятивная доля 0.7 <=
-    // 0.8 -> A), одинаковый спрос в оба месяца (CV=0 -> X).
-    // prod-2: 300 из 1000 (кумулятивная доля 1.0 -> C), спрос только в
+    // prod-1: 700 из 1000 суммарной выручки (доля до него 0 < 0.8 -> A),
+    // одинаковый спрос в оба месяца (CV=0 -> X).
+    // prod-2: 300 из 1000 (доля до него 0.7 < 0.8 -> A: пересекает границу 80%, но остаётся в A), спрос только в
     // одном из двух месяцев (-> Z).
     $deals = [
         new Deal('d-1', 'prod-1', 350.0, new DateTimeImmutable('2026-01-05')),
@@ -30,7 +30,7 @@ it('merges AbcClassifier and XyzClassifier output into one abc_xyz_classificatio
     $byId = $classifications->keyBy('entityId');
 
     expect($byId['prod-1']->valueMeta)->toBe(['abc_class' => 'A', 'xyz_class' => 'X']);
-    expect($byId['prod-2']->valueMeta)->toBe(['abc_class' => 'C', 'xyz_class' => 'Z']);
+    expect($byId['prod-2']->valueMeta)->toBe(['abc_class' => 'A', 'xyz_class' => 'Z']);
 
     // value итоговой строки берётся от AbcClassifier (суммарная
     // выручка товара за период), а не от XyzClassifier (CV) — см.
