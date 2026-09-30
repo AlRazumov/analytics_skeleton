@@ -1,6 +1,6 @@
 @php
     /** @var \App\Core\Widgets\DTO\ProductCardData $card */
-    $num = fn (?float $v, int $p = 2) => $v === null ? '—' : \App\Support\Format::num($v, $p);
+    $num = fn (?float $v, int $p = 2) => $v === null ? '—' : \App\Core\Support\Format::num($v, $p);
     $month = fn (string $key) => substr($key, strpos($key, ':') + 1);
     $showTurnover = (bool) config('analytics.features.turnover');
     $delta = $card->revenueDeltaPercent();

@@ -3,8 +3,8 @@
 namespace App\Repositories;
 
 use App\Core\Analytics\CategoryRevenueCalculator;
-use App\Core\Staging\StagingProduct;
 use App\Core\Widgets\Contracts\ProductCategoryResolver;
+use App\Models\Staging\StagingProduct;
 
 /** Категории товаров из staging_products: DISTINCT одним запросом. */
 final class DbProductCategoryResolver implements ProductCategoryResolver

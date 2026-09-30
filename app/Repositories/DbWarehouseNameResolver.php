@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Core\Staging\StagingWarehouse;
 use App\Core\Widgets\Contracts\WarehouseNameResolver;
+use App\Models\Staging\StagingWarehouse;
 
 /**
  * Названия складов из справочника в БД: запрос whereIn на набор id,

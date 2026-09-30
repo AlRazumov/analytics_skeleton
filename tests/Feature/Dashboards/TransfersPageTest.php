@@ -1,9 +1,9 @@
 <?php
 
 use App\Core\Contracts\DataSourceAdapter;
-use App\Core\Staging\StagingProduct;
-use App\Core\Staging\StagingWarehouse;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
+use App\Models\Staging\StagingProduct;
+use App\Models\Staging\StagingWarehouse;
 use App\Models\User;
 use App\Repositories\EloquentMetricsSnapshotWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;

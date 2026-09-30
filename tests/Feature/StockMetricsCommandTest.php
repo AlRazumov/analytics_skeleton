@@ -1,5 +1,9 @@
 <?php
 
+use App\Core\Analytics\Sellers\SalesCount;
+use App\Core\Analytics\Sellers\SellerMetric;
+use App\Core\Analytics\Sellers\SellerSalesData;
+use App\Core\Domain\Period;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,4 +98,40 @@ it('keeps the previous snapshots when writing the new ones fails', function () {
         ->toThrow(RuntimeException::class, 'write failed')
         ->and(MetricsSnapshot::query()->count())->toBe($before)
         ->and(MetricsSnapshot::query()->where('entity_id', 'partial')->exists())->toBeFalse();
+});
+
+it('deletes rows of a seller metric added to the registry, so a second run does not hit the unique index', function () {
+    $extra = new class implements SellerMetric
+    {
+        public function key(): string
+        {
+            return 'extra_sales_count';
+        }
+
+        public function label(): string
+        {
+            return 'Extra';
+        }
+
+        public function entityType(): string
+        {
+            return 'seller';
+        }
+
+        public function compute(SellerSalesData $data, Period $period): iterable
+        {
+            return (new SalesCount)->compute($data, $period);
+        }
+    };
+    config([
+        'analytics.metrics.seller' => [...config('analytics.metrics.seller'), $extra::class],
+        'analytics.enabled_metrics.seller' => [...config('analytics.enabled_metrics.seller'), 'extra_sales_count'],
+    ]);
+
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-08:2026-08'])->assertExitCode(0);
+    $first = MetricsSnapshot::query()->where('metric_key', 'extra_sales_count')->count();
+    $this->artisan('metrics:calculate', ['--profile' => 'small', '--period' => '2026-08:2026-08'])->assertExitCode(0);
+
+    expect($first)->toBeGreaterThan(0)
+        ->and(MetricsSnapshot::query()->where('metric_key', 'extra_sales_count')->count())->toBe($first);
 });

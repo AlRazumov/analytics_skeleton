@@ -1,7 +1,7 @@
 @props(['data', 'thresholds'])
 @php
     /** @var \App\Core\Widgets\DTO\TransferTableData $data */
-    $num = fn (float|int $v, int $p = 1) => \App\Support\Format::num($v, $p);
+    $num = fn (float|int $v, int $p = 1) => \App\Core\Support\Format::num($v, $p);
     // ЭВРИСТИКА ДЛЯ ДЕМО: у донора без продаж (stock_surplus) нет скорости
     // продаж — покрытие условно бесконечно (INF), в таблице показываем «—».
     $coverage = fn (float $v, int $p = 1) => is_infinite($v) ? '—' : $num($v, $p);

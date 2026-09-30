@@ -1,6 +1,6 @@
 @php
     use App\Core\Domain\Enums\ComparisonBase;
-    use App\Support\Format;
+    use App\Core\Support\Format;
 
     $link = fn (ComparisonBase $target) => route('dashboards.categories', array_filter([
         'period' => request()->query('period'),

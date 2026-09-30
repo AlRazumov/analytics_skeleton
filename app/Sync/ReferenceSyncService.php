@@ -3,9 +3,9 @@
 namespace App\Sync;
 
 use App\Core\Contracts\DataSourceAdapter;
-use App\Core\Staging\StagingProduct;
-use App\Core\Staging\StagingSeller;
-use App\Core\Staging\StagingWarehouse;
+use App\Models\Staging\StagingProduct;
+use App\Models\Staging\StagingSeller;
+use App\Models\Staging\StagingWarehouse;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 

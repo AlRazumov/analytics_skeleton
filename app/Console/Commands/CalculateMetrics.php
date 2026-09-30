@@ -9,6 +9,7 @@ use App\Core\Analytics\CategoryRevenueCalculator;
 use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Analytics\MetricsCalculationService;
+use App\Core\Analytics\Sellers\SellerMetric;
 use App\Core\Contracts\DataSourceAdapter;
 use App\Core\Domain\DateRange;
 use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
@@ -36,19 +37,17 @@ class CalculateMetrics extends Command
 
     protected $description = 'Пересчитать метрики (revenue, ABC/XYZ, turnover, категории) из DataSourceAdapter в metrics_snapshots';
 
-    /** Пары [entity_type, metric_key], которые пересчитываются (и удаляются перед записью). */
+    /**
+     * Пары [entity_type, metric_key] метрик вне реестра продавцов, которые
+     * пересчитываются (и удаляются перед записью). Метрики продавцов берутся
+     * из реестра analytics.metrics.seller — см. metricPairs().
+     */
     private const array METRICS = [
         ['product', 'revenue'],
         ['product', 'abc_xyz_classification'],
         ['product', 'turnover'],
         ['product', 'lost_sales'],
         [CategoryRevenueCalculator::ENTITY_TYPE, CategoryRevenueCalculator::METRIC_KEY],
-        ['seller', 'sales_count'],
-        ['seller', 'sales_amount'],
-        ['seller', 'avg_check'],
-        ['seller', 'share_of_total'],
-        ['seller', 'sales_per_active_day'],
-        ['seller', 'trend'],
         [DeadStockCalculator::ENTITY_TYPE, DeadStockCalculator::METRIC_KEY],
         [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::METRIC_KEY],
         [DaysOfStockCalculator::ENTITY_TYPE, DaysOfStockCalculator::NO_DEMAND_STOCK_METRIC_KEY],
@@ -156,6 +155,28 @@ class CalculateMetrics extends Command
         return $this->monthRange($value, $adapter, 12);
     }
 
+    /**
+     * Все пары, которые пишет расчёт. Метрики продавцов — весь реестр
+     * (включая выключенные в enabled_metrics: их старые строки тоже нужно
+     * снять), чтобы новая метрика реестра не осталась вне удаления и не
+     * упёрлась во второй запуск в уникальный индекс.
+     *
+     * @return list<array{string, string}>
+     */
+    private function metricPairs(): array
+    {
+        $pairs = self::METRICS;
+        foreach ((array) config('analytics.metrics.seller') as $class) {
+            $metric = new $class;
+            if (! $metric instanceof SellerMetric) {
+                throw new InvalidArgumentException("analytics.metrics.seller: {$class} не реализует SellerMetric.");
+            }
+            $pairs[] = [$metric->entityType(), $metric->key()];
+        }
+
+        return $pairs;
+    }
+
     private function deleteExistingSnapshots(DateRange $dateRange): void
     {
         $cursor = new DateTimeImmutable($dateRange->start->format('Y-m-01'));
@@ -169,7 +190,7 @@ class CalculateMetrics extends Command
 
         MetricsSnapshot::query()
             ->where(function ($query) {
-                foreach (self::METRICS as [$entityType, $metricKey]) {
+                foreach ($this->metricPairs() as [$entityType, $metricKey]) {
                     $query->orWhere(fn ($q) => $q->where('entity_type', $entityType)->where('metric_key', $metricKey));
                 }
             })

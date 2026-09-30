@@ -2,9 +2,9 @@
 
 namespace App\Repositories;
 
-use App\Core\Staging\StagingSeller;
 use App\Core\Widgets\Contracts\EntityNameResolver;
 use App\Core\Widgets\Contracts\ProductNameResolver;
+use App\Models\Staging\StagingSeller;
 
 /** Названия из справочников в БД: product — через ProductNameResolver, seller — staging_sellers. */
 final class DbEntityNameResolver implements EntityNameResolver

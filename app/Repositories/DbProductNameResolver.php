@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Core\Staging\StagingProduct;
 use App\Core\Widgets\Contracts\ProductNameResolver;
+use App\Models\Staging\StagingProduct;
 
 /**
  * Названия товаров из справочника в БД: запрос whereIn на набор id,

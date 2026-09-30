@@ -3,9 +3,9 @@
     /** @var \App\Core\Widgets\DTO\LineChartData|null $chart */
     /** @var string|null $title заголовок вместо «Топ-N: <метрика>» */
     $fmt = fn (string $key, float $v) => match ($key) {
-        'sales_count' => \App\Support\Format::num($v, 0),
-        'share_of_total', 'trend' => \App\Support\Format::num($v, 1).'%',
-        default => \App\Support\Format::num($v),
+        'sales_count' => \App\Core\Support\Format::num($v, 0),
+        'share_of_total', 'trend' => \App\Core\Support\Format::num($v, 1).'%',
+        default => \App\Core\Support\Format::num($v),
     };
     $columns = $data === null ? [] : [$data->metric, ...$data->columns];
 @endphp

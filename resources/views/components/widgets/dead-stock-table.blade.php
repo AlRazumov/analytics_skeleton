@@ -21,8 +21,8 @@
                 @forelse ($data->rows as $row)
                     <tr>
                         <td><x-widgets.product-link :id="$row->productId" :name="$row->productName" :period="$data->period" /></td>
-                        <td>@if ($row->stockQty === null)—@else{{ \App\Support\Format::num($row->stockQty) }}@endif</td>
-                        <td>{{ $row->lowerBound ? '≥ ' : '' }}{{ \App\Support\Format::num($row->daysSinceLastSale, 0) }}</td>
+                        <td>@if ($row->stockQty === null)—@else{{ \App\Core\Support\Format::num($row->stockQty) }}@endif</td>
+                        <td>{{ $row->lowerBound ? '≥ ' : '' }}{{ \App\Core\Support\Format::num($row->daysSinceLastSale, 0) }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="3">Нет данных за период</td></tr>

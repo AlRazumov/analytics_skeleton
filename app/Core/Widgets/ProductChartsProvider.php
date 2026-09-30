@@ -6,6 +6,7 @@ use App\Core\Analytics\DaysOfStockCalculator;
 use App\Core\Analytics\DeadStockCalculator;
 use App\Core\Domain\Enums\PeriodGranularity;
 use App\Core\Domain\Period;
+use App\Core\Support\Format;
 use App\Core\Widgets\Contracts\MetricsComparisonRepository;
 use App\Core\Widgets\DTO\LineChartData;
 use App\Core\Widgets\DTO\RankedTableData;
@@ -13,7 +14,6 @@ use App\Core\Widgets\DTO\Series;
 use App\Core\Widgets\DTO\SeriesPoint;
 use App\Core\Widgets\DTO\TopProductRow;
 use App\Core\Widgets\DTO\ValueRange;
-use App\Support\Format;
 
 /**
  * Данные графиков по товарам (распределения по корзинам, топ выручки).
