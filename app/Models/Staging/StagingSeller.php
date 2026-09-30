@@ -1,21 +1,24 @@
 <?php
 
-namespace App\Core\Staging;
+namespace App\Models\Staging;
 
 use Illuminate\Database\Eloquent\Model;
 
-class StagingWarehouse extends Model
+class StagingSeller extends Model
 {
-    protected $table = 'staging_warehouses';
+    protected $table = 'staging_sellers';
 
     protected $fillable = [
         'external_id',
         'name',
+        'branch_external_id',
+        'is_active',
         'meta',
         'synced_at',
     ];
 
     protected $casts = [
+        'is_active' => 'boolean',
         'meta' => 'array',
         'synced_at' => 'datetime',
     ];

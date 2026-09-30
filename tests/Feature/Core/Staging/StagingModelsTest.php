@@ -1,8 +1,8 @@
 <?php
 
-use App\Core\Staging\StagingDeal;
-use App\Core\Staging\StagingProduct;
-use App\Core\Staging\StagingStockMovement;
+use App\Models\Staging\StagingDeal;
+use App\Models\Staging\StagingProduct;
+use App\Models\Staging\StagingStockMovement;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 

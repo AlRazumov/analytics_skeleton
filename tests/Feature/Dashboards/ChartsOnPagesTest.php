@@ -1,7 +1,7 @@
 <?php
 
-use App\Core\Staging\StagingProduct;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
+use App\Models\Staging\StagingProduct;
 use App\Models\User;
 use App\Repositories\EloquentMetricsSnapshotWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;

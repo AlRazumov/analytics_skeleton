@@ -24,9 +24,9 @@
                     <tr>
                         <td><x-widgets.product-link :id="$row->productId" :name="$row->productName" :period="$data->period" /></td>
                         <td>{{ $row->warehouseName }}</td>
-                        <td>@if ($row->stockQty === null)—@else{{ \App\Support\Format::num($row->stockQty) }}@endif</td>
-                        <td>@if ($row->dailyRate === null)—@else{{ \App\Support\Format::num($row->dailyRate) }}@endif</td>
-                        <td>{{ \App\Support\Format::num($row->daysOfStock, 1) }}</td>
+                        <td>@if ($row->stockQty === null)—@else{{ \App\Core\Support\Format::num($row->stockQty) }}@endif</td>
+                        <td>@if ($row->dailyRate === null)—@else{{ \App\Core\Support\Format::num($row->dailyRate) }}@endif</td>
+                        <td>{{ \App\Core\Support\Format::num($row->daysOfStock, 1) }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="5">Нет данных за период</td></tr>

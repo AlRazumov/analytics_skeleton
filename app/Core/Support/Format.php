@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support;
+namespace App\Core\Support;
 
 /** Форматирование чисел для таблиц: разряды пробелом, десятичная запятая, без хвостовых нулей. */
 final class Format

@@ -1,27 +1,25 @@
 <?php
 
-namespace App\Core\Staging;
+namespace App\Models\Staging;
 
 use Illuminate\Database\Eloquent\Model;
 
-class StagingStockMovement extends Model
+class StagingDeal extends Model
 {
-    protected $table = 'staging_stock_movements';
+    protected $table = 'staging_deals';
 
     protected $fillable = [
         'external_id',
         'product_external_id',
-        'warehouse_external_id',
-        'to_warehouse_external_id',
-        'quantity',
-        'type',
+        'seller_external_id',
+        'amount',
         'occurred_at',
         'meta',
         'synced_at',
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:4',
+        'amount' => 'decimal:4',
         'occurred_at' => 'datetime',
         'meta' => 'array',
         'synced_at' => 'datetime',

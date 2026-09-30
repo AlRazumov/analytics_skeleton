@@ -22,9 +22,9 @@
                 @forelse ($data->rows as $row)
                     <tr>
                         <td><x-widgets.product-link :id="$row->productId" :name="$row->productName" :period="$data->period" /></td>
-                        <td>@if ($row->closingStock === null)—@else{{ \App\Support\Format::num($row->closingStock) }}@endif</td>
-                        <td>@if ($row->unitsSold === null)—@else{{ \App\Support\Format::num($row->unitsSold) }}@endif</td>
-                        <td>{{ \App\Support\Format::num($row->turnover) }}</td>
+                        <td>@if ($row->closingStock === null)—@else{{ \App\Core\Support\Format::num($row->closingStock) }}@endif</td>
+                        <td>@if ($row->unitsSold === null)—@else{{ \App\Core\Support\Format::num($row->unitsSold) }}@endif</td>
+                        <td>{{ \App\Core\Support\Format::num($row->turnover) }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="4">Нет данных за период</td></tr>

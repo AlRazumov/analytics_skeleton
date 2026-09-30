@@ -1,7 +1,7 @@
 <?php
 
-use App\Core\Staging\StagingProduct;
-use App\Core\Staging\StagingWarehouse;
+use App\Models\Staging\StagingProduct;
+use App\Models\Staging\StagingWarehouse;
 use App\Repositories\DbProductNameResolver;
 use App\Repositories\DbWarehouseNameResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;

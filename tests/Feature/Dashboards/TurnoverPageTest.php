@@ -1,9 +1,9 @@
 <?php
 
 use App\Core\Domain\Period;
-use App\Core\Staging\StagingProduct;
 use App\Core\Widgets\DTO\MetricsSnapshotRecord;
 use App\Core\Widgets\DTO\ValueRange;
+use App\Models\Staging\StagingProduct;
 use App\Models\User;
 use App\Repositories\EloquentMetricsComparisonRepository;
 use App\Repositories\EloquentMetricsSnapshotWriter;
