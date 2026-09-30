@@ -25,7 +25,7 @@
                         @php $cell = $cellByKey[$rowLabel.'|'.$colLabel] ?? null; @endphp
                         <td>
                             @if ($cell)
-                                {{ $cell->itemsCount }} / {{ number_format($cell->value, 2) }}
+                                {{ $cell->itemsCount }} / {{ \App\Core\Support\Format::num($cell->value) }}
                             @else
                                 &mdash;
                             @endif

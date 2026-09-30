@@ -91,6 +91,15 @@
         .kpi-value { font-size: 2rem; font-weight: bold; }
         .kpi-delta-up { color: green; }
         .kpi-delta-down { color: crimson; }
+        .attention { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+        .attention__tile {
+            flex: 1 1 200px; display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem;
+            border: 1px solid #ddd; border-radius: 8px; background: #fff; color: inherit; text-decoration: none;
+        }
+        .attention__tile:hover { border-color: #1f2937; }
+        .attention__count { font-size: 2rem; font-weight: bold; }
+        .attention__label { font-weight: bold; }
+        .attention__hint { font-size: 0.85rem; color: #6b7280; }
         @media (max-width: 640px) {
             .header { flex-wrap: wrap; padding: 0.75rem 1rem; }
             .content { padding: 1rem; }
