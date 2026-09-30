@@ -85,12 +85,16 @@
             color: #6b7280;
             font-size: 0.85rem;
         }
-        .widget { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; background: #fff; }
+        .widget { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; background: #fff; overflow-x: auto; }
         table { border-collapse: collapse; width: 100%; }
         th, td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
         .kpi-value { font-size: 2rem; font-weight: bold; }
         .kpi-delta-up { color: green; }
         .kpi-delta-down { color: crimson; }
+        @media (max-width: 640px) {
+            .header { flex-wrap: wrap; padding: 0.75rem 1rem; }
+            .content { padding: 1rem; }
+        }
     </style>
 </head>
 <body>
@@ -145,7 +149,11 @@
     </main>
 
     <footer class="footer">
-        Analytics Skeleton — демо-каркас, данные из MockAdapter
+        @if (config('analytics.source') === 'mock')
+            Демо: данные синтетические, сгенерированы MockAdapter
+        @else
+            Аналитика
+        @endif
     </footer>
 </body>
 </html>
