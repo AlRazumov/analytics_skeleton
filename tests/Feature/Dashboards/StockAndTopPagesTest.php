@@ -368,3 +368,23 @@ it('shows a product name from the reference, falls back to the id, and escapes m
         ->assertSee('&lt;b&gt;Жирный&lt;/b&gt; товар', false)->assertDontSee('<b>Жирный</b>', false)
         ->assertSee('p-unknown');
 });
+
+it('shows the attention tiles with counts and links to the matching pages', function () {
+    seedFromMock(1);
+
+    $this->get('/dashboards/overview')->assertOk()
+        ->assertSee('Требует внимания', false)
+        ->assertSee('class="attention__tile"', false)
+        ->assertSee('Неликвиды')
+        ->assertSee('Риск дефицита')
+        ->assertSee(route('dashboards.transfers', ['period' => 'month:2026-08']), false);
+});
+
+it('hides an attention tile when its page feature is off', function () {
+    seedFromMock(1);
+    config(['analytics.features.transfers' => false]);
+
+    $this->get('/dashboards/overview')->assertOk()
+        ->assertSee('Неликвиды')
+        ->assertDontSee('Рекомендаций довезти товар между складами');
+});
