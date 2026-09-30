@@ -9,7 +9,7 @@
 | # | Этап | Файл | Статус | Зависит от |
 |---|------|------|--------|------------|
 | 00 | Setup: структура репо, миграция metrics_snapshots, Pest | stages/stage-00-setup.md | done | — |
-| 01 | Core-модели + контракт DataSourceAdapter | stages/stage-01-core-models.md | done (2026-09-09: постфактум-правка StockMovement — добавлено toWarehouseId для Transfer, см. отчёт) | 00 |
+| 01 | Core-модели + контракт DataSourceAdapter | stages/stage-01-core-models.md | done (2026-09-09: постфактум-правка StockMovement — добавлено toWarehouseId для Transfer, см. отчёт; устарело: на этапе 06 поле убрано, перемещение — пара `transfer_out`/`transfer_in`, см. Known issues от 2026-09-26) | 00 |
 | 02 | MockAdapter | stages/stage-02-mock-adapter.md | done | 01 |
 | 03 | Widgets (Chart.js) | stages/stage-03-widgets.md | done | 02 |
 | 04 | Расчётный пайплайн (adapters → metrics_snapshots) | stages/stage-04-metrics-pipeline.md | done | 02, 03 |
@@ -275,10 +275,10 @@
   `staging_stock_movements.to_warehouse_external_id` не пишется: в домене
   перемещение — пара `transfer_out`/`transfer_in` с общим `meta.transfer_id`
   (`StockMovement.php`), поля `toWarehouseId` нет. Упоминания «добавлен
-  `toWarehouseId`» в строке этапа 01 таблицы выше, `stages/stage-02-*` и
-  отчётах этапов 01/02 устарели (у `StockMovement` такого поля нет; оно есть
-  только у рекомендаций перемещений, этап 14). Файлы этапов задним числом не
-  переписываются. Решать, нужна ли
+  `toWarehouseId`» в `stages/stage-02-*` и отчётах этапов 01/02 устарели (у
+  `StockMovement` такого поля нет; оно есть только у рекомендаций перемещений,
+  этап 14); в строке этапа 01 таблицы выше пометка об устаревании добавлена
+  2026-09-30. Файлы этапов и отчёты задним числом не переписываются. Решать, нужна ли
   запись сырых данных в staging и в какой форме, — с первым реальным адаптером.
 
 - ✅ closed (2026-09-28, этап 23, `reports/stage-23-days-of-stock.md`; было
