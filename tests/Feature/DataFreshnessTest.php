@@ -4,6 +4,7 @@ use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsRun;
 use App\Models\MetricsSnapshot;
 use App\Models\User;
+use App\Services\DataFreshness;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -103,4 +104,18 @@ it('shows nothing without a run log and on the login page', function () {
 
     metricsRun(MetricsRun::SUCCESS, '2026-09-28 03:00:00', '2026-09-28 03:02:00');
     $this->get('/dashboards/overview')->assertOk()->assertSee('class="freshness-bar', false);
+});
+
+it('marks a run stuck in running for over 3 hours as failed instead of showing it as in progress', function () {
+    CarbonImmutable::setTestNow('2026-09-30 12:00:00');
+    metricsRun(MetricsRun::SUCCESS, '2026-09-30 03:00:00', '2026-09-30 03:05:00');
+    $stuck = metricsRun(MetricsRun::RUNNING, '2026-09-30 08:00:00');
+    $fresh = metricsRun(MetricsRun::RUNNING, '2026-09-30 11:00:00');
+
+    $freshness = DataFreshness::at(CarbonImmutable::now(), 36);
+
+    expect($stuck->refresh()->status)->toBe(MetricsRun::FAILED)
+        ->and($stuck->error)->not->toBeNull()
+        ->and($fresh->refresh()->status)->toBe(MetricsRun::RUNNING)
+        ->and($freshness->laterAttempt?->id)->toBe($fresh->id);
 });

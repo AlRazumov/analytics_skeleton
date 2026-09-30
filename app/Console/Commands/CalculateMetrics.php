@@ -16,6 +16,7 @@ use App\Core\Widgets\Contracts\MetricsSnapshotWriter;
 use App\Models\MetricsRun;
 use App\Models\MetricsSnapshot;
 use App\Sync\ReferenceSyncService;
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,7 @@ class CalculateMetrics extends Command
 
         // Журнал запусков (индикатор свежести на страницах) пишется вне
         // транзакции расчёта: упавший запуск остаётся в журнале со статусом failed.
+        MetricsRun::failAbandoned(CarbonImmutable::now());
         $run = MetricsRun::query()->create([
             'source' => $factory->source().($profileOption !== '' ? "/{$profileOption}" : ''),
             'status' => MetricsRun::RUNNING,
